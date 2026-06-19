@@ -244,6 +244,9 @@
   .wk-planet text{text-anchor:middle; font-size:15px; font-family:var(--sym),serif; pointer-events:none}
   .wk-np text{fill:var(--gold-bright)}
   .wk-tp text{fill:#cfe0ff}
+  .wk-cp text{fill:#c9b6e6}
+  .wk-legend .wk-cp{color:#c9b6e6}
+  .sub-h{font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold); margin:18px 0 6px}
   .wk-hit{fill:transparent; stroke:transparent; stroke-width:2}
   .wk-planet.sel .wk-hit{fill:rgba(201,164,92,.22); stroke:var(--gold)}
   .wk-house.sel{fill:var(--gold)}
@@ -498,9 +501,9 @@ function chartFor(date,lat,lon,withAngles){
     const l=eclLon(p.body,date), si=signOf(l);
     return {...p, lon:l, sign:si, retro:(!p.lum)&&isRetro(p.body,date)};
   });
-  let ascSign=null;
-  if(withAngles && lat!=null && lon!=null) ascSign=signOf(ascendant(date,lat,lon));
-  return {planets, ascSign, date};
+  let ascSign=null, ascLon=null;
+  if(withAngles && lat!=null && lon!=null){ ascLon=ascendant(date,lat,lon); ascSign=signOf(ascLon); }
+  return {planets, ascSign, ascLon, date};
 }
 const houseOf=(signIdx,ascSign)=> ascSign==null?null:mod(signIdx-ascSign,12)+1;
 function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
@@ -679,8 +682,8 @@ function buildWheel(natal,transit,asps){
       `<p class="wd-sub">Transiting now: ${tIn.length?tIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`;
   }
   const note=hasH?"":`<p class="wd-sub" style="margin-top:8px">Add a birth time to see houses and the Ascendant on your wheel.</p>`;
-  const sectionHtml=`<div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● natal</span><span class="wk-tp">● transiting now</span></div>`+
-    `<div class="wheel-detail" id="wheelDetail"><em>Tap any planet${hasH?" or house number":""} on the wheel to read it.</em>${note}</div>`;
+  const sectionHtml=`<div class="wheelblock"><div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● natal</span><span class="wk-tp">● transiting now</span></div>`+
+    `<div class="wheel-detail"><em>Tap any planet${hasH?" or house number":""} on the wheel to read it.</em>${note}</div></div>`;
   return {sectionHtml,details};
 }
 
@@ -1041,7 +1044,86 @@ function synWheel(A,B,asps){
       `<p class="wd-sub">${B.name} here: ${bIn.length?bIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`;
   }
   const note=hasH?"":`<p class="wd-sub" style="margin-top:8px">Birth times unlock house overlays and the Ascendant.</p>`;
-  return {sectionHtml:`<div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● ${A.name}</span><span class="wk-tp">● ${B.name}</span></div><div class="wheel-detail" id="wheelDetail"><em>Tap any planet${hasH?" or house":""} to read the connection.</em>${note}</div>`, details};
+  return {sectionHtml:`<div class="wheelblock"><div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● ${A.name}</span><span class="wk-tp">● ${B.name}</span></div><div class="wheel-detail"><em>Tap any planet${hasH?" or house":""} to read the connection.</em>${note}</div></div>`, details};
+}
+
+// midpoint of two longitudes along the shorter arc
+const midLon=(a,b)=>{ const d=((b-a+540)%360)-180; return mod(a+d/2,360); };
+// internal aspects within a single chart (distinct planet pairs)
+function internalAspects(chart){
+  const out=[], P=chart.planets;
+  for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){
+    let diff=Math.abs(P[i].lon-P[j].lon); if(diff>180)diff=360-diff;
+    for(const a of ASPECTS){ const orb=Math.abs(diff-a.ang);
+      if(orb<=a.orb){ out.push({tp:P[i],np:P[j],asp:a,orb,score:(a.orb-orb)+(P[i].personal?2:0)+(P[j].personal?2:0)+(P[i].lum||P[j].lum?2:0)}); break; } }
+  }
+  return out.sort((x,y)=>y.score-x.score);
+}
+function compBlend(a){
+  if(a.asp.nat==="flowing") return `the relationship's ${a.tp.short} and ${a.np.short} flow together easily.`;
+  if(a.asp.nat==="fusing")  return `the relationship fuses ${a.tp.short} with ${a.np.short} — a defining, concentrated theme.`;
+  return `${a.tp.short} and ${a.np.short} create productive tension you grow through together.`;
+}
+// single-chart wheel (used for the composite); keyPrefix keeps detail keys unique across wheels
+function soloWheel(chart,asps,kp,clsP){
+  const cx=170,cy=170,Rout=166,Rsign=140,Rhouse=104,Rp=100,Rasp=64;
+  const hasH=chart.ascSign!=null, ref=hasH?chart.ascSign*30:0;
+  const place=(planets,baseR)=>{ const s=[...planets].sort((p,q)=>p.lon-q.lon); let last=-99,tier=0;
+    return s.map(p=>{ tier=(p.lon-last<8)?tier+1:0; last=p.lon; const r=baseR-tier*13, [x,y]=wheelPos(p.lon,ref,r,cx,cy); return {p,x,y}; }); };
+  let g=`<svg viewBox="0 0 340 340" class="wheel" role="img" aria-label="Composite chart wheel">`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="${Rout}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rsign}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rhouse}" class="wk-ring"/>`;
+  for(let i=0;i<12;i++){
+    const [x1,y1]=wheelPos(i*30,ref,Rhouse,cx,cy), [x2,y2]=wheelPos(i*30,ref,Rout,cx,cy);
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="wk-div"/>`;
+    const [sx,sy]=wheelPos(i*30+15,ref,(Rsign+Rout)/2,cx,cy);
+    g+=`<text x="${sx}" y="${sy}" class="wk-sign" dy="0.35em">${SIGNS[i].g}</text>`;
+    if(hasH){ const hn=mod(i-chart.ascSign,12)+1, [hx,hy]=wheelPos(i*30+15,ref,Rhouse-11,cx,cy);
+      g+=`<text x="${hx}" y="${hy}" class="wk-house" data-detail="${kp}h-${hn}" dy="0.35em">${hn}</text>`; }
+  }
+  for(const a of asps.slice(0,8)){
+    const [x1,y1]=wheelPos(a.tp.lon,ref,Rasp,cx,cy), [x2,y2]=wheelPos(a.np.lon,ref,Rasp,cx,cy);
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${ASP_COLOR[a.asp.nat]}" stroke-width="1.2" opacity="${(0.3+0.5*(1-a.orb/a.asp.orb)).toFixed(2)}"/>`;
+  }
+  if(hasH){ const [lx,ly]=wheelPos(0,ref,Rhouse-9,cx,cy); g+=`<text x="${lx}" y="${ly}" class="wk-asc" dy="0.35em">ASC</text>`; }
+  for(const {p,x,y} of place(chart.planets,Rp))
+    g+=`<g data-detail="${kp}p-${p.n}" class="wk-planet ${clsP}"><circle cx="${x}" cy="${y}" r="11" class="wk-hit"/><text x="${x}" y="${y}" dy="0.34em">${p.g}</text></g>`;
+  g+=`</svg>`;
+  const details={};
+  for(const p of chart.planets){
+    const h=houseOf(p.sign,chart.ascSign), hits=asps.filter(x=>x.tp.n===p.n||x.np.n===p.n).slice(0,3);
+    details[`${kp}p-${p.n}`]=`<div class="wd-h">${p.g} Composite ${p.n} in ${SIGNS[p.sign].n}${h?` · ${ord(h)} house`:""}</div>`+
+      `<p>In the relationship, ${p.short} expresses as ${SIGNS[p.sign].key}.</p>`+
+      (hits.length?`<p class="wd-sub">Linked to:</p><ul>${hits.map(a=>{const o=a.tp.n===p.n?a.np:a.tp;return `<li>${o.g} ${o.n} ${a.asp.sym} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></li>`;}).join("")}</ul>`:"");
+  }
+  if(hasH) for(let hn=1;hn<=12;hn++){
+    const si=mod(chart.ascSign+hn-1,12), inH=chart.planets.filter(p=>p.sign===si);
+    details[`${kp}h-${hn}`]=`<div class="wd-h">Composite ${ord(hn)} house · ${HOUSE_INFO[hn].tag}</div><p>${cap(HOUSE_INFO[hn].ex)} — as a couple.</p>`+
+      `<p class="wd-sub">Composite planets here: ${inH.length?inH.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`;
+  }
+  return {svg:g,details};
+}
+function buildComposite(A,B){
+  const planets=PLANETS.map((p,i)=>{ const l=midLon(A.chart.planets[i].lon,B.chart.planets[i].lon); return {...p,lon:l,sign:signOf(l),retro:false}; });
+  let ascLon=null,ascSign=null;
+  if(A.chart.ascLon!=null && B.chart.ascLon!=null){ ascLon=midLon(A.chart.ascLon,B.chart.ascLon); ascSign=signOf(ascLon); }
+  const chart={planets,ascLon,ascSign};
+  const asps=internalAspects(chart);
+  const w=soloWheel(chart,asps,"c-","wk-cp");
+  const get=n=>planets.find(p=>p.n===n);
+  const sun=get("Sun"),moon=get("Moon"),ven=get("Venus");
+  const place=[
+    `<li><span class="t">${sun.g} Composite Sun in ${SIGNS[sun.sign].n}</span><span class="m">The relationship's core purpose and identity: ${SIGNS[sun.sign].key}. This is what the bond is fundamentally <em>about</em>.</span></li>`,
+    `<li><span class="t">${moon.g} Composite Moon in ${SIGNS[moon.sign].n}</span><span class="m">Its emotional tone and what makes it feel safe: ${SIGNS[moon.sign].key}.</span></li>`,
+    `<li><span class="t">${ven.g} Composite Venus in ${SIGNS[ven.sign].n}</span><span class="m">How affection, pleasure and values express between you: ${SIGNS[ven.sign].key}.</span></li>`,
+  ];
+  if(ascSign!=null) place.push(`<li><span class="t">⬆ Composite Ascendant in ${SIGNS[ascSign].n}</span><span class="m">How the relationship looks from the outside — the vibe others pick up: ${SIGNS[ascSign].key}.</span></li>`);
+  const aspList=asps.slice(0,5).map(a=>`<li><span class="t">${a.tp.g} ${a.tp.n} ${a.asp.sym} ${a.np.g} ${a.np.n} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></span><span class="m">${cap(compBlend(a))}</span></li>`).join("");
+  const note=ascSign==null?`<p class="hint">Both birth times are needed for composite houses and the Ascendant.</p>`:"";
+  const sectionHtml=`<p>The <b>composite chart</b> is the relationship itself as a single chart — the midpoints of your two charts. It describes the bond as its own entity, separate from either of you.</p>`+
+    `<div class="wheelblock"><div class="wheelwrap">${w.svg}</div><div class="wk-legend"><span class="wk-cp">● the relationship</span></div><div class="wheel-detail"><em>Tap any composite planet${ascSign!=null?" or house":""} to read it.</em></div></div>`+
+    `<h3 class="sub-h">Core placements</h3><ul>${place.join("")}</ul>`+
+    (aspList?`<h3 class="sub-h">Defining composite aspects</h3><ul>${aspList}</ul>`:"")+note;
+  return {sectionHtml,details:w.details};
 }
 
 function buildSynastry(A,B){
@@ -1087,11 +1169,15 @@ function buildSynastry(A,B){
   const wheel=synWheel(A,B,asps);
   sec.push({tab:"chart",h:"Synastry Wheel",html:wheel.sectionHtml});
 
+  const comp=buildComposite(A,B);
+  sec.push({tab:"life",h:"Your Composite Chart",html:comp.sectionHtml});
+
   sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0"));
   const hero={ topline:`💞 ${A.name} ↔ ${B.name}`, line:`${overall}/100 · ${verdict}`,
     chips:[{t:`❤ Romance ${rom}`,jump:"transits"},{t:`💬 Talk ${com}`,jump:"houses"},{t:`🪨 Stability ${sta}`,jump:"chart"}] };
-  return {mode:"synastry",headL:"Compatibility",headD:`${A.name} ↔ ${B.name}`,sec,hero,wheel:{details:wheel.details},
-    tabs:{today:"Overview",transits:"Aspects",houses:"Overlays",chart:"Wheel"}};
+  return {mode:"synastry",headL:"Compatibility",headD:`${A.name} ↔ ${B.name}`,sec,hero,
+    wheel:{details:{...wheel.details,...comp.details}},
+    tabs:{today:"Overview",transits:"Aspects",houses:"Overlays",chart:"Wheel",life:"Composite"}};
 }
 
 /* ───────────────────────── UI ───────────────────────── */
@@ -1310,14 +1396,16 @@ function render(data){
   hero.querySelectorAll(".hchip").forEach(b=>b.onclick=()=>{ activate(b.dataset.jump); tabbar.scrollIntoView({behavior:"smooth",block:"start"}); });
   activate(present[0][0]);
 
-  // chart-wheel tap-to-reveal
+  // chart-wheel tap-to-reveal (per wheel block — supports multiple wheels, e.g. synastry + composite)
   if(data.wheel){
-    const wd=r.querySelector("#wheelDetail");
-    r.querySelectorAll(".wheel [data-detail]").forEach(g=>{
-      g.addEventListener("click",()=>{
-        r.querySelectorAll(".wheel .sel").forEach(e=>e.classList.remove("sel"));
-        g.classList.add("sel");
-        if(wd && data.wheel.details[g.dataset.detail]) wd.innerHTML=data.wheel.details[g.dataset.detail];
+    r.querySelectorAll(".wheelblock").forEach(block=>{
+      const wd=block.querySelector(".wheel-detail");
+      block.querySelectorAll(".wheel [data-detail]").forEach(g=>{
+        g.addEventListener("click",()=>{
+          block.querySelectorAll(".wheel .sel").forEach(e=>e.classList.remove("sel"));
+          g.classList.add("sel");
+          if(wd && data.wheel.details[g.dataset.detail]) wd.innerHTML=data.wheel.details[g.dataset.detail];
+        });
       });
     });
   }
