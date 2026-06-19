@@ -207,6 +207,30 @@
   [data-goals]{transition:opacity .3s,filter .3s}
   [data-goals].dim{opacity:.32; filter:saturate(.4)}
 
+  /* ── COMPATIBILITY PANEL ── */
+  .compat-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px}
+  .compat-head h2{font-family:var(--serif); font-weight:500; font-size:26px; margin:0}
+  .people{display:flex; flex-direction:column; gap:8px; margin-top:4px}
+  .person{display:flex; justify-content:space-between; align-items:center; gap:10px;
+    background:var(--ink-2); border:1px solid var(--line); border-radius:11px; padding:11px 14px; font-size:15px}
+  .person .px{background:transparent; border:none; color:var(--terra); font-size:15px; cursor:pointer; padding:2px 6px}
+  .ptag{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink); background:var(--sage); border-radius:5px; padding:2px 7px}
+  .compare-row{display:flex; gap:12px; margin-top:16px}
+  .compare-row>div{flex:1}
+
+  /* ── SYNASTRY SCOREBOARD ── */
+  .scoreboard{display:flex; gap:16px; align-items:center; margin-bottom:14px}
+  .score-big{flex:0 0 auto; width:84px; height:84px; border-radius:50%; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; background:radial-gradient(120% 120% at 50% 0%,#2a3450,#171f2c); border:1px solid var(--gold)}
+  .score-big .sv{font-family:var(--serif); font-size:34px; line-height:1; color:var(--gold-bright)}
+  .score-big .sl{font-family:var(--mono); font-size:8.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--cream-dim); margin-top:3px}
+  .score-bars{flex:1; display:flex; flex-direction:column; gap:8px}
+  .sbar{display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--cream-dim)}
+  .sbar>span{flex:0 0 84px; text-transform:uppercase}
+  .sbar .strack{flex:1; height:7px; border-radius:4px; background:var(--ink-2); overflow:hidden}
+  .sbar .sfill{height:100%; border-radius:4px; background:linear-gradient(90deg,var(--sage),var(--gold))}
+  .sbar b{flex:0 0 auto; color:var(--cream); font-family:var(--serif); font-size:15px}
+
   /* ── CHART WHEEL ── */
   .wheelwrap{margin:6px auto 8px; max-width:340px}
   .wheel{width:100%; height:auto; display:block}
@@ -332,9 +356,13 @@
         <div class="goals" id="goals"></div>
       </div>
       <button class="primary" id="go" type="button">Read today's sky</button>
+      <button class="ghost" id="compatBtn" type="button" style="width:100%;margin-top:10px">💞 Compatibility (synastry)</button>
       <div class="err" id="err"></div>
     </div>
   </div>
+
+  <!-- ============ COMPATIBILITY ============ -->
+  <div id="compat" style="display:none"></div>
 
   <div class="loading" id="loading"><div class="spinner"></div>Aligning the planets…</div>
 
@@ -951,6 +979,121 @@ function buildForecast(natal,transit,start,days,mode,goals,approx){
   return {sec,transit,approx,hero,goals,timeline:[],tabs:{today:"Overview",transits:"Calendar",houses:"Houses",life:"Life"}};
 }
 
+/* ───────────────────────── Synastry (two-chart compatibility) ───────────────────────── */
+const SYN_W={Sun:3,Moon:3,Venus:2.6,Mars:2,Mercury:1.6,Jupiter:1.4,Saturn:1.4,Uranus:1,Neptune:1,Pluto:1};
+function synScore(asps,set){
+  const q={flowing:1,fusing:0.7,dynamic:-0.55}; let s=0;
+  for(const a of asps){
+    if(set && !(set.includes(a.tp.n)||set.includes(a.np.n))) continue;
+    const w=((SYN_W[a.tp.n]||1)+(SYN_W[a.np.n]||1))/2/3, close=1-a.orb/a.asp.orb;
+    s+=q[a.asp.nat]*w*close;
+  }
+  return Math.max(5,Math.min(98,Math.round(52+14*s)));
+}
+function synBlend(a,nA,nB){
+  const {tp,np,asp}=a;
+  if(asp.nat==="flowing") return `${nA}'s ${tp.short} flows easily with ${nB}'s ${np.short} — a natural, supportive link to lean on.`;
+  if(asp.nat==="fusing")  return `${nA}'s ${tp.short} fuses with ${nB}'s ${np.short} — magnetic and intense; a core bonding point.`;
+  return `${nA}'s ${tp.short} rubs against ${nB}'s ${np.short} — friction here, but the kind that creates growth when handled with care.`;
+}
+function synWheel(A,B,asps){
+  const cx=170,cy=170, Rout=166,Rsign=140,Rhouse=104, Rb=122,Ra=78,Rasp=60;
+  const hasH=A.chart.ascSign!=null, ref=hasH?A.chart.ascSign*30:0;
+  const place=(planets,baseR)=>{ const s=[...planets].sort((p,q)=>p.lon-q.lon); let last=-99,tier=0;
+    return s.map(p=>{ tier=(p.lon-last<8)?tier+1:0; last=p.lon; const r=baseR-tier*13, [x,y]=wheelPos(p.lon,ref,r,cx,cy); return {p,x,y}; }); };
+  let g=`<svg viewBox="0 0 340 340" class="wheel" role="img" aria-label="Synastry bi-wheel">`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="${Rout}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rsign}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rhouse}" class="wk-ring"/>`;
+  for(let i=0;i<12;i++){
+    const [x1,y1]=wheelPos(i*30,ref,Rhouse,cx,cy), [x2,y2]=wheelPos(i*30,ref,Rout,cx,cy);
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="wk-div"/>`;
+    const [sx,sy]=wheelPos(i*30+15,ref,(Rsign+Rout)/2,cx,cy);
+    g+=`<text x="${sx}" y="${sy}" class="wk-sign" dy="0.35em">${SIGNS[i].g}</text>`;
+    if(hasH){ const hn=mod(i-A.chart.ascSign,12)+1, [hx,hy]=wheelPos(i*30+15,ref,Rhouse-11,cx,cy);
+      g+=`<text x="${hx}" y="${hy}" class="wk-house" data-detail="h-${hn}" dy="0.35em">${hn}</text>`; }
+  }
+  for(const a of asps.slice(0,10)){
+    const [ax,ay]=wheelPos(a.tp.lon,ref,Rasp,cx,cy), [bx,by]=wheelPos(a.np.lon,ref,Rasp,cx,cy);
+    g+=`<line x1="${ax}" y1="${ay}" x2="${bx}" y2="${by}" stroke="${ASP_COLOR[a.asp.nat]}" stroke-width="1.2" opacity="${(0.3+0.5*(1-a.orb/a.asp.orb)).toFixed(2)}"/>`;
+  }
+  if(hasH){ const [lx,ly]=wheelPos(0,ref,Rhouse-9,cx,cy); g+=`<text x="${lx}" y="${ly}" class="wk-asc" dy="0.35em">ASC</text>`; }
+  for(const {p,x,y} of place(A.chart.planets,Ra))
+    g+=`<g data-detail="a-${p.n}" class="wk-planet wk-np"><circle cx="${x}" cy="${y}" r="11" class="wk-hit"/><text x="${x}" y="${y}" dy="0.34em">${p.g}</text></g>`;
+  for(const {p,x,y} of place(B.chart.planets,Rb))
+    g+=`<g data-detail="b-${p.n}" class="wk-planet wk-tp"><circle cx="${x}" cy="${y}" r="11" class="wk-hit"/><text x="${x}" y="${y}" dy="0.34em">${p.g}</text></g>`;
+  g+=`</svg>`;
+
+  const details={};
+  for(const p of A.chart.planets){
+    const h=houseOf(p.sign,A.chart.ascSign), hits=asps.filter(x=>x.tp.n===p.n).slice(0,3);
+    details[`a-${p.n}`]=`<div class="wd-h">${p.g} ${A.name}'s ${p.n} in ${SIGNS[p.sign].n}${h?` · ${ord(h)} house`:""}</div><p>${cap(p.theme)}.</p>`+
+      (hits.length?`<p class="wd-sub">Touched by ${B.name}'s:</p><ul>${hits.map(a=>`<li>${a.np.g} ${a.np.n} ${a.asp.sym} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></li>`).join("")}</ul>`:"");
+  }
+  for(const p of B.chart.planets){
+    const h=houseOf(p.sign,A.chart.ascSign), hits=asps.filter(x=>x.np.n===p.n).slice(0,3);
+    details[`b-${p.n}`]=`<div class="wd-h">${p.g} ${B.name}'s ${p.n} in ${SIGNS[p.sign].n}${h?` · lands in ${A.name}'s ${houseTag(h)}`:""}</div>`+
+      (h?`<p>Activates ${HOUSE_INFO[h].ex} for ${A.name}.</p>`:"")+
+      (hits.length?`<p class="wd-sub">Touches ${A.name}'s:</p><ul>${hits.map(a=>`<li>${a.tp.g} ${a.tp.n} ${a.asp.sym} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></li>`).join("")}</ul>`:"");
+  }
+  if(hasH) for(let hn=1;hn<=12;hn++){
+    const si=mod(A.chart.ascSign+hn-1,12), aIn=A.chart.planets.filter(p=>p.sign===si), bIn=B.chart.planets.filter(p=>p.sign===si);
+    details[`h-${hn}`]=`<div class="wd-h">${A.name}'s ${ord(hn)} house · ${HOUSE_INFO[hn].tag}</div><p>${cap(HOUSE_INFO[hn].ex)}.</p>`+
+      `<p class="wd-sub">${A.name} here: ${aIn.length?aIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`+
+      `<p class="wd-sub">${B.name} here: ${bIn.length?bIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`;
+  }
+  const note=hasH?"":`<p class="wd-sub" style="margin-top:8px">Birth times unlock house overlays and the Ascendant.</p>`;
+  return {sectionHtml:`<div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● ${A.name}</span><span class="wk-tp">● ${B.name}</span></div><div class="wheel-detail" id="wheelDetail"><em>Tap any planet${hasH?" or house":""} to read the connection.</em>${note}</div>`, details};
+}
+
+function buildSynastry(A,B){
+  const asps=aspectsBetween(A.chart,B.chart);     // tp = A's planet, np = B's planet
+  const top=asps.slice(0,10);
+  const overall=synScore(asps,null), rom=synScore(asps,["Sun","Moon","Venus","Mars"]),
+        com=synScore(asps,["Mercury","Sun","Moon","Jupiter"]), sta=synScore(asps,["Saturn","Sun","Moon"]);
+  const verdict = overall>=80?"a powerful, easeful match":overall>=66?"strong and promising":overall>=52?"workable, with real effort":"a growth-oriented, challenging pairing";
+  const has=(p,q)=>asps.find(a=>(a.tp.n===p&&a.np.n===q)||(a.tp.n===q&&a.np.n===p));
+  const flow=top.filter(a=>a.asp.nat!=="dynamic").length, dyn=top.filter(a=>a.asp.nat==="dynamic").length;
+
+  let nar=`${A.name} and ${B.name} score ${overall}/100 — ${verdict}. `;
+  nar+= flow>dyn?`The connection leans easy, with more flowing links than friction. `
+      : dyn>flow?`There's real friction here (${dyn} challenging contacts to ${flow} easy ones), so this bond deepens through effort and honesty. `
+      : `It's a balanced mix of ease and challenge. `;
+  if(has("Sun","Moon")) nar+=`A Sun–Moon contact gives a deep sense of "getting" one another. `;
+  if(has("Venus","Mars")) nar+=`Venus–Mars adds clear romantic and physical chemistry. `;
+  if(has("Saturn","Sun")||has("Saturn","Moon")) nar+=`Saturn contacts lend weight and longevity — this can last. `;
+
+  const sec=[];
+  const bar=(lab,v)=>`<div class="sbar"><span>${lab}</span><div class="strack"><div class="sfill" style="width:${v}%"></div></div><b>${v}</b></div>`;
+  sec.push({tab:"today",h:"Compatibility Overview",cls:"theme-card",
+    html:`<div class="scoreboard"><div class="score-big"><span class="sv">${overall}</span><span class="sl">overall</span></div>`+
+      `<div class="score-bars">${bar("Romance",rom)}${bar("Communication",com)}${bar("Stability",sta)}</div></div>`+
+      `<p class="lead">${nar}</p>`});
+
+  const aspList=top.map(a=>`<li><span class="t">${A.name}'s ${a.tp.g} ${a.tp.n} ${a.asp.sym} ${B.name}'s ${a.np.g} ${a.np.n} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></span><span class="m">${synBlend(a,A.name,B.name)}</span></li>`).join("");
+  sec.push({tab:"transits",h:"Key Connections",html:top.length?`<p>The strongest links between your charts:</p><ul>${aspList}</ul>`:`<p>No close aspects between these charts — a low-friction, somewhat independent pairing.</p>`});
+
+  // house overlays (each needs the home person's birth time)
+  let ovl="";
+  if(A.chart.ascSign!=null){
+    const rows=B.chart.planets.map(p=>{const h=houseOf(p.sign,A.chart.ascSign);return `<li><span class="t">${p.g} ${B.name}'s ${p.n} → ${A.name}'s ${houseTag(h)}</span><span class="m">Brings ${p.short} into ${A.name}'s ${HOUSE_INFO[h].ex}.</span></li>`;}).join("");
+    ovl+=`<p><b>${B.name}'s planets in ${A.name}'s houses</b> — where ${B.name} lights up ${A.name}'s life:</p><ul>${rows}</ul>`;
+  }
+  if(B.chart.ascSign!=null){
+    const rows=A.chart.planets.map(p=>{const h=houseOf(p.sign,B.chart.ascSign);return `<li><span class="t">${p.g} ${A.name}'s ${p.n} → ${B.name}'s ${houseTag(h)}</span><span class="m">Brings ${p.short} into ${B.name}'s ${HOUSE_INFO[h].ex}.</span></li>`;}).join("");
+    ovl+=`<p style="margin-top:14px"><b>${A.name}'s planets in ${B.name}'s houses</b>:</p><ul>${rows}</ul>`;
+  }
+  if(!ovl) ovl=`<p>House overlays need both birth times. Add them to see which life areas you activate for each other.</p>`;
+  sec.push({tab:"houses",h:"House Overlays",html:ovl});
+
+  const wheel=synWheel(A,B,asps);
+  sec.push({tab:"chart",h:"Synastry Wheel",html:wheel.sectionHtml});
+
+  sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0"));
+  const hero={ topline:`💞 ${A.name} ↔ ${B.name}`, line:`${overall}/100 · ${verdict}`,
+    chips:[{t:`❤ Romance ${rom}`,jump:"transits"},{t:`💬 Talk ${com}`,jump:"houses"},{t:`🪨 Stability ${sta}`,jump:"chart"}] };
+  return {mode:"synastry",headL:"Compatibility",headD:`${A.name} ↔ ${B.name}`,sec,hero,wheel:{details:wheel.details},
+    tabs:{today:"Overview",transits:"Aspects",houses:"Overlays",chart:"Wheel"}};
+}
+
 /* ───────────────────────── UI ───────────────────────── */
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t); if(c)e.className=c; return e;};
@@ -1030,6 +1173,7 @@ async function run(){
   const goals=[...goalBox.children].filter(c=>c.getAttribute("aria-pressed")==="true").map(c=>c.textContent);
 
   localStorage.setItem("astrobot",JSON.stringify({bdate,btime,city:$("#city").value,lat,lon,tz,goals}));
+  seedYou();
 
   // birth instant in UTC (DST-aware for the birth date); M is 1-based from the date input
   const birthUTC=wallToUtc(Y,M,D,h,mi,tz);
@@ -1083,57 +1227,58 @@ function buildTimeline(timeline){
 
 function render(data){
   const r=$("#reading"); r.innerHTML=""; r.style.display="block";
-  const now=data.transit.date;
+  const syn=data.mode==="synastry";
   const dl=el("div","dateline");
-  dl.innerHTML=`<div class="l">Today's Sky</div><div class="d">${now.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</div>`;
+  if(syn) dl.innerHTML=`<div class="l">${data.headL}</div><div class="d">${data.headD}</div>`;
+  else    dl.innerHTML=`<div class="l">Today's Sky</div><div class="d">${data.transit.date.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</div>`;
   r.appendChild(dl);
 
-  // live sky strip
-  const sky=el("div","sky");
-  ["Sun","Moon","Mercury","Venus","Mars"].forEach(nm=>{
-    const p=data.transit.planets.find(x=>x.n===nm);
-    const b=el("div","b");
-    b.innerHTML=`<div class="glyph">${p.g}</div><div class="nm">${p.n}</div><div class="pos">${fmtPos(p.lon)}</div>${p.retro?'<div class="rx">℞ retro</div>':""}`;
-    sky.appendChild(b);
-  });
-  r.appendChild(sky);
+  if(!syn){
+    // live sky strip
+    const sky=el("div","sky");
+    ["Sun","Moon","Mercury","Venus","Mars"].forEach(nm=>{
+      const p=data.transit.planets.find(x=>x.n===nm);
+      const b=el("div","b");
+      b.innerHTML=`<div class="glyph">${p.g}</div><div class="nm">${p.n}</div><div class="pos">${fmtPos(p.lon)}</div>${p.retro?'<div class="rx">℞ retro</div>':""}`;
+      sky.appendChild(b);
+    });
+    r.appendChild(sky);
 
-  if(data.approx){
-    const w=el("div","approx-note");
-    w.innerHTML=`<em>Birth time was left blank, so houses and Moon sign are approximate (noon-based). Add a birth time for a sharper reading.</em>`;
-    r.appendChild(w);
+    if(data.approx){
+      const w=el("div","approx-note");
+      w.innerHTML=`<em>Birth time was left blank, so houses and Moon sign are approximate (noon-based). Add a birth time for a sharper reading.</em>`;
+      r.appendChild(w);
+    }
+
+    // ── MODE TOGGLE (Today / Week / Month) ──
+    const modebar=el("div","modebar");
+    [["today","Today"],["week","Week"],["month","Month"]].forEach(([m,lab])=>{
+      const btn=el("button","modebtn"+(viewMode===m?" on":"")); btn.textContent=lab;
+      btn.onclick=()=>{ if(viewMode!==m){ viewMode=m; localStorage.setItem("astrobot_mode",m); run(); } };
+      modebar.appendChild(btn);
+    });
+    r.appendChild(modebar);
   }
-
-  // ── MODE TOGGLE (Today / Week / Month) ──
-  const modebar=el("div","modebar");
-  [["today","Today"],["week","Week"],["month","Month"]].forEach(([m,lab])=>{
-    const btn=el("button","modebtn"+(viewMode===m?" on":"")); btn.textContent=lab;
-    btn.onclick=()=>{ if(viewMode!==m){ viewMode=m; localStorage.setItem("astrobot_mode",m); run(); } };
-    modebar.appendChild(btn);
-  });
-  r.appendChild(modebar);
 
   // ── HERO ──
   const h=data.hero, hero=el("div","hero");
   hero.innerHTML=`<div class="hero-moon">${h.topline}</div><div class="hero-line">${h.line}</div><div class="hero-chips">${h.chips.map(c=>`<button class="hchip" data-jump="${c.jump}">${c.t}</button>`).join("")}</div>`;
   r.appendChild(hero);
 
-  // ── GOAL FILTER BAR ──
-  let activeGoal=null;
-  const fbar=el("div","filterbar");
-  fbar.innerHTML=`<span class="fl-label">Focus</span>`;
-  (data.goals||[]).forEach(g=>{
-    const c=el("button","fchip"); c.textContent=g; c.dataset.goal=g;
-    c.onclick=()=>{ activeGoal=activeGoal===g?null:g; updateFilter(); };
-    fbar.appendChild(c);
-  });
-  r.appendChild(fbar);
-  function updateFilter(){
-    fbar.querySelectorAll(".fchip").forEach(c=>c.classList.toggle("on",c.dataset.goal===activeGoal));
-    r.querySelectorAll("[data-goals]").forEach(elm=>{
-      const gs=elm.getAttribute("data-goals").split(" ").filter(Boolean);
-      elm.classList.toggle("dim", !!activeGoal && !gs.includes(activeGoal));
+  // ── GOAL FILTER BAR (reading only) ──
+  if(!syn && data.goals){
+    let activeGoal=null;
+    const fbar=el("div","filterbar");
+    fbar.innerHTML=`<span class="fl-label">Focus</span>`;
+    data.goals.forEach(g=>{
+      const c=el("button","fchip"); c.textContent=g; c.dataset.goal=g;
+      c.onclick=()=>{ activeGoal=activeGoal===g?null:g;
+        fbar.querySelectorAll(".fchip").forEach(x=>x.classList.toggle("on",x.dataset.goal===activeGoal));
+        r.querySelectorAll("[data-goals]").forEach(elm=>{ const gs=elm.getAttribute("data-goals").split(" ").filter(Boolean); elm.classList.toggle("dim", !!activeGoal && !gs.includes(activeGoal)); });
+      };
+      fbar.appendChild(c);
     });
+    r.appendChild(fbar);
   }
 
   // ── TABS + PANELS ──
@@ -1178,13 +1323,101 @@ function render(data){
   }
 
   const fb=el("div","footer-btns");
-  const again=el("button","ghost");again.textContent="↻ Re-read";again.onclick=run;
-  const edit=el("button","ghost");edit.textContent="✎ Edit details";edit.onclick=()=>{r.style.display="none";window.scrollTo({top:0,behavior:"smooth"});};
-  fb.append(again,edit); r.appendChild(fb);
+  if(syn){
+    const back=el("button","ghost");back.textContent="↩ Compatibility";back.onclick=()=>{r.style.display="none";openCompat();};
+    const home=el("button","ghost");home.textContent="✎ My reading";home.onclick=()=>{r.style.display="none";$("#form").style.display="";window.scrollTo({top:0,behavior:"smooth"});};
+    fb.append(back,home);
+  } else {
+    const again=el("button","ghost");again.textContent="↻ Re-read";again.onclick=run;
+    const edit=el("button","ghost");edit.textContent="✎ Edit details";edit.onclick=()=>{r.style.display="none";window.scrollTo({top:0,behavior:"smooth"});};
+    fb.append(again,edit);
+  }
+  r.appendChild(fb);
 
   $("#disc").textContent="Astrobot is for reflection, encouragement and self-coaching — not medical, legal or financial advice. Astrology describes energy and possibility, never certainty. You always hold the pen.";
   r.scrollIntoView({behavior:"smooth",block:"start"});
 }
+/* ───────────────────────── Compatibility roster + panel ───────────────────────── */
+const PKEY="astrobot_people";
+const loadPeople=()=>{try{return JSON.parse(localStorage.getItem(PKEY))||[]}catch(e){return[]}};
+const savePeople=a=>localStorage.setItem(PKEY,JSON.stringify(a));
+function seedYou(){
+  const s=JSON.parse(localStorage.getItem("astrobot")||"null"); if(!s||!s.bdate) return;
+  const ppl=loadPeople(), you=ppl.find(p=>p.id==="you");
+  const rec={id:"you",name:"You",bdate:s.bdate,btime:s.btime||"",city:s.city||"",lat:s.lat,lon:s.lon,tz:s.tz};
+  if(you) Object.assign(you,rec); else ppl.unshift(rec);
+  savePeople(ppl);
+}
+function chartForPerson(p){
+  const [Y,M,D]=p.bdate.split("-").map(Number), [h,mi]=(p.btime||"12:00").split(":").map(Number);
+  const utc=wallToUtc(Y,M,D,h,mi,p.tz||localTz);
+  return chartFor(utc,(p.lat??null),(p.lon??null),!!p.btime);
+}
+function openCompat(){ $("#form").style.display="none"; $("#reading").style.display="none"; const c=$("#compat"); c.style.display="block"; renderCompat(); c.scrollIntoView({behavior:"smooth",block:"start"}); }
+function closeCompat(){ $("#compat").style.display="none"; $("#form").style.display=""; window.scrollTo({top:0,behavior:"smooth"}); }
+
+function renderCompat(){
+  seedYou();
+  const ppl=loadPeople(), c=$("#compat");
+  const opts=ppl.map(p=>`<option value="${p.id}">${p.name}</option>`).join("");
+  c.innerHTML=`<div class="card">
+    <div class="compat-head"><h2>💞 Compatibility</h2><button class="ghost" id="compatBack" type="button">← Back</button></div>
+    <p class="hint">Compare any two saved charts. A birth time sharpens houses, overlays & the Moon.</p>
+    <label>Saved people</label>
+    <div class="people">${ppl.length?ppl.map(p=>`<div class="person"><span>${p.name} <span style="color:#7e8a98">· ${p.bdate}${p.btime?" "+p.btime:" (no time)"}</span></span>${p.id==="you"?'<span class="ptag">you</span>':`<button class="px" data-del="${p.id}" type="button" aria-label="Delete">✕</button>`}</div>`).join(""):`<p class="hint">No one saved yet — add a person below.</p>`}</div>
+    <button class="ghost" id="addToggle" type="button" style="width:100%;margin-top:10px">+ Add person</button>
+    <div id="addForm" style="display:none"></div>
+    ${ppl.length>=2?`<div class="compare-row"><div><label>Person A</label><select id="selA">${opts}</select></div><div><label>Person B</label><select id="selB">${opts}</select></div></div>
+      <button class="primary" id="compareBtn" type="button" style="margin-top:14px">Compare ↔</button><div class="err" id="compatErr"></div>`
+      :`<p class="hint" style="margin-top:14px">Add at least two people to compare.</p>`}
+    </div>`;
+  if(ppl.length>=2) $("#selB").selectedIndex=1;
+  $("#compatBack").onclick=closeCompat;
+  c.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{ savePeople(loadPeople().filter(p=>p.id!==b.dataset.del)); renderCompat(); });
+  $("#addToggle").onclick=()=>{ const af=$("#addForm"); if(af.style.display==="none"){ af.style.display="block"; buildAddForm(af); } else af.style.display="none"; };
+  const cb=$("#compareBtn"); if(cb) cb.onclick=doCompare;
+}
+
+function buildAddForm(af){
+  af.innerHTML=`<div class="field"><label>Name</label><input type="text" id="pName" placeholder="e.g. Alex"/></div>
+    <div class="field"><label>Date of birth</label><input type="date" id="pDate"/></div>
+    <div class="field"><label>Time of birth</label><input type="time" id="pTime"/><p class="hint">Unknown? Leave blank — houses will be approximate.</p></div>
+    <div class="field"><label>Birth place</label>
+      <div class="cityrow"><input type="text" id="pCity" placeholder="City, Country" autocomplete="off"/><button class="ghost" id="pFind" type="button">Find</button></div>
+      <div class="row" style="margin-top:12px"><div><label>Latitude</label><input type="number" id="pLat" step="0.0001"/></div><div><label>Longitude</label><input type="number" id="pLon" step="0.0001"/></div></div>
+      <p class="hint" id="pHint">Tap Find to fill these and the time zone.</p></div>
+    <div class="field"><label>Birth time zone</label><select id="pTz"></select></div>
+    <button class="primary" id="pSave" type="button">Save person</button>`;
+  const ptz=$("#pTz"); ptz.innerHTML=tzSel.innerHTML; ptz.value=tzSel.value;
+  $("#pFind").onclick=async()=>{ const q=$("#pCity").value.trim(); if(!q)return; $("#pHint").textContent="Searching…";
+    try{ const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1`); const j=await r.json();
+      if(j.results&&j.results[0]){ const cc=j.results[0]; $("#pLat").value=cc.latitude.toFixed(4); $("#pLon").value=cc.longitude.toFixed(4);
+        $("#pCity").value=[cc.name,cc.admin1,cc.country].filter(Boolean).join(", ");
+        if(cc.timezone&&[...ptz.options].some(o=>o.value===cc.timezone)) ptz.value=cc.timezone;
+        $("#pHint").textContent=`Found: ${cc.name}`; } else $("#pHint").textContent="No match — enter lat & long manually."; }
+    catch(e){ $("#pHint").textContent="Lookup failed — enter lat & long manually."; } };
+  $("#pSave").onclick=()=>{
+    const bdate=$("#pDate").value; if(!bdate){ $("#pHint").textContent="Date of birth is required."; return; }
+    const rec={id:"p"+Date.now(),name:$("#pName").value.trim()||"Unnamed",bdate,btime:$("#pTime").value,city:$("#pCity").value,
+      lat:$("#pLat").value!==""?Number($("#pLat").value):null,lon:$("#pLon").value!==""?Number($("#pLon").value):null,tz:ptz.value};
+    const ppl=loadPeople(); ppl.push(rec); savePeople(ppl); renderCompat();
+  };
+}
+
+function doCompare(){
+  const err=$("#compatErr"); err.textContent="";
+  const ppl=loadPeople(), A=ppl.find(p=>p.id===$("#selA").value), B=ppl.find(p=>p.id===$("#selB").value);
+  if(!A||!B){ err.textContent="Pick two people."; return; }
+  if(A.id===B.id){ err.textContent="Pick two different people."; return; }
+  try{
+    const data=buildSynastry({name:A.name,chart:chartForPerson(A)},{name:B.name,chart:chartForPerson(B)});
+    $("#compat").style.display="none";
+    render(data);
+  }catch(e){ console.error(e); err.textContent="Couldn't compute: "+e.message; }
+}
+$("#compatBtn").onclick=openCompat;
+seedYou();
+
 $("#disc").textContent="";
 </script>
 </body>
