@@ -207,6 +207,22 @@
   [data-goals]{transition:opacity .3s,filter .3s}
   [data-goals].dim{opacity:.32; filter:saturate(.4)}
 
+  /* ── TAROT ── */
+  .tspread{display:grid; gap:14px; margin-top:18px}
+  .tspread.single{grid-template-columns:1fr; max-width:280px; margin-left:auto; margin-right:auto}
+  .tspread.three{grid-template-columns:1fr}
+  .tspread.celtic{grid-template-columns:1fr 1fr}
+  .tcard{background:linear-gradient(160deg,#26324c,#161d29); border:1px solid #33405a; border-radius:14px; padding:14px;
+    opacity:0; transform:translateY(12px) scale(.97); animation:rise .55s cubic-bezier(.2,.7,.2,1) forwards}
+  .tcard.rev{background:linear-gradient(160deg,#382a3e,#1d1622); border-color:#5a3a52}
+  .tc-pos{font-family:var(--mono); font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--gold)}
+  .tc-face{text-align:center; padding:12px 0 8px; border-bottom:1px dashed var(--line); margin-bottom:9px}
+  .tc-mark{font-size:32px; line-height:1; color:var(--gold-bright); font-family:var(--sym),serif}
+  .tcard.rev .tc-mark{display:inline-block; transform:rotate(180deg); color:#c9b6e6}
+  .tc-name{font-family:var(--serif); font-size:21px; color:var(--cream); margin-top:6px; line-height:1.05}
+  .tc-orient{font-family:var(--mono); font-size:9.5px; letter-spacing:.1em; color:var(--cream-dim); margin-top:5px}
+  .tc-mean{font-size:14px; color:#ccc4b2; line-height:1.5}
+
   /* ── COMPATIBILITY PANEL ── */
   .compat-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:4px}
   .compat-head h2{font-family:var(--serif); font-weight:500; font-size:26px; margin:0}
@@ -360,12 +376,16 @@
       </div>
       <button class="primary" id="go" type="button">Read today's sky</button>
       <button class="ghost" id="compatBtn" type="button" style="width:100%;margin-top:10px">💞 Compatibility (synastry)</button>
+      <button class="ghost" id="tarotBtn" type="button" style="width:100%;margin-top:10px">🔮 Tarot reading</button>
       <div class="err" id="err"></div>
     </div>
   </div>
 
   <!-- ============ COMPATIBILITY ============ -->
   <div id="compat" style="display:none"></div>
+
+  <!-- ============ TAROT ============ -->
+  <div id="tarot" style="display:none"></div>
 
   <div class="loading" id="loading"><div class="spinner"></div>Aligning the planets…</div>
 
@@ -1505,6 +1525,93 @@ function doCompare(){
 }
 $("#compatBtn").onclick=openCompat;
 seedYou();
+
+/* ───────────────────────── Tarot ───────────────────────── */
+function buildDeck(){
+  const ROMAN=["0","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII","XIII","XIV","XV","XVI","XVII","XVIII","XIX","XX","XXI"];
+  const MAJORS=[
+    {name:"The Fool",up:"New beginnings, a leap of faith, spontaneity and trusting the journey.",rev:"Recklessness, fear of the unknown, or holding back from a leap you need to take."},
+    {name:"The Magician",up:"Manifestation and willpower — you have all the tools you need; take focused action.",rev:"Scattered energy, untapped potential, or manipulation. Align intention with action."},
+    {name:"The High Priestess",up:"Intuition and inner knowing. Listen to your subconscious; the answer is already in you.",rev:"Ignored intuition, secrets, or staying on the surface when depth is called for."},
+    {name:"The Empress",up:"Abundance, nurturing, creativity and sensual pleasure. Something is blossoming.",rev:"Creative block, neglected self-care, or smothering. Replenish before you give more."},
+    {name:"The Emperor",up:"Structure, authority and stability. Build the framework; lead with discipline.",rev:"Rigidity, control issues, or a lack of structure that needs addressing."},
+    {name:"The Hierophant",up:"Tradition, learning and shared values. Guidance from a mentor or established path.",rev:"Questioning convention and finding your own way. Don't follow rules that no longer fit."},
+    {name:"The Lovers",up:"Love, union and alignment of values — and a meaningful choice made from the heart.",rev:"Disharmony or misalignment; a difficult choice or values out of sync."},
+    {name:"The Chariot",up:"Drive and willpower. Victory through focus and control — steer with determination.",rev:"Loss of direction or control; scattered effort pulling you off course."},
+    {name:"Strength",up:"Courage, patience and gentle inner power. Lead with compassion, not force.",rev:"Self-doubt or low confidence; raw emotion running unchecked."},
+    {name:"The Hermit",up:"Soul-searching and solitude. Step back, reflect, and seek your inner guidance.",rev:"Isolation or withdrawal — or avoiding the introspection you actually need."},
+    {name:"Wheel of Fortune",up:"Cycles and turning points. Luck and destiny are in motion — go with the turn.",rev:"Resistance to change or a run of bad timing; you feel stuck in a loop."},
+    {name:"Justice",up:"Fairness, truth and accountability. Cause and effect; make the clear, honest decision.",rev:"Injustice, dishonesty, or dodging accountability. Face the truth."},
+    {name:"The Hanged Man",up:"Surrender and a new perspective. Pause and let go to gain the insight you're missing.",rev:"Stalling, needless martyrdom, or resisting a shift in perspective."},
+    {name:"Death",up:"Endings and transformation. Release what's complete to make way for the new.",rev:"Resisting an ending, clinging to the past, and the stagnation that brings."},
+    {name:"Temperance",up:"Balance, moderation and patience. Blend the extremes; find the middle way.",rev:"Excess, impatience or imbalance throwing things out of harmony."},
+    {name:"The Devil",up:"Attachment and temptation — material lures and self-imposed chains. Notice what binds you.",rev:"Breaking free, releasing a limiting pattern, and reclaiming your power."},
+    {name:"The Tower",up:"Sudden upheaval and revelation. A false structure breaks so truth can stand.",rev:"Avoiding a needed collapse, fearing change, or delaying the inevitable."},
+    {name:"The Star",up:"Hope, healing and renewal. Quiet faith returns; you're being guided gently forward.",rev:"Discouragement or lost faith; reconnect with what inspires you."},
+    {name:"The Moon",up:"Illusion, intuition and the subconscious. Things aren't fully clear — trust dreams and instinct.",rev:"Fear releasing its grip; confusion clearing and truth surfacing."},
+    {name:"The Sun",up:"Joy, vitality and success. Clarity, warmth and well-earned positivity.",rev:"Temporary clouds over your joy; reconnect with optimism and play."},
+    {name:"Judgement",up:"A reckoning and awakening. A clear call to rise, renew and forgive.",rev:"Self-doubt or ignoring the call; harsh self-judgement holding you back."},
+    {name:"The World",up:"Completion and wholeness. Achievement, integration and a cycle fulfilled.",rev:"Loose ends or a delay just before the finish — close the final gap."},
+  ];
+  const deck=MAJORS.map((m,i)=>({id:"M"+i,name:m.name,mark:ROMAN[i],arcana:"major",up:m.up,rev:m.rev}));
+  const SUITS=[["Wands","drive, passion, creativity and action","✴"],["Cups","emotions, love, intuition and relationships","❁"],["Swords","thoughts, truth, conflict and communication","⚔"],["Pentacles","money, work, the body and the material world","❖"]];
+  const RANKS=[
+    ["Ace","a fresh seed of","a blocked or delayed start in"],["Two","a choice or balancing of","indecision or imbalance in"],
+    ["Three","early growth and teamwork in","setbacks or stalled growth in"],["Four","stability and consolidation in","stagnation or clinging in"],
+    ["Five","conflict, loss or struggle in","recovery and release from struggle in"],["Six","harmony, recovery and progress in","stalled progress or lingering imbalance in"],
+    ["Seven","patient assessment and challenge in","impatience or wasted effort in"],["Eight","momentum and skill-building in","scattered focus or stagnation in"],
+    ["Nine","near-fulfillment and resilience in","anxiety or unfinished business in"],["Ten","completion and culmination of","burden or a heavy ending in"],
+    ["Page","a curious, learning approach to","immaturity or blocked messages in"],["Knight","bold pursuit and momentum in","recklessness or stalling in"],
+    ["Queen","inner mastery and nurturing of","insecurity or over-control in"],["King","outward mastery and authority in","domineering or weak command of"],
+  ];
+  for(const [suit,dom,gl] of SUITS) for(let ri=0;ri<RANKS.length;ri++){ const [r,u,v]=RANKS[ri];
+    deck.push({id:suit[0]+ri,name:`${r} of ${suit}`,mark:gl,arcana:"minor",suit,up:`${cap(u)} ${dom}.`,rev:`${cap(v)} ${dom}.`});
+  }
+  return deck;
+}
+const DECK=buildDeck();
+const SPREADS={
+  single:{name:"Single Card",n:1,pos:["Your card"]},
+  three:{name:"Three-Card",n:3,pos:["Past","Present","Future"]},
+  celtic:{name:"Celtic Cross",n:10,pos:["Present","Challenge","Foundation","Recent past","Crown / best outcome","Near future","You","Environment","Hopes & fears","Outcome"]},
+};
+const tarotState={spread:"single",rev:true};
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function drawSpread(){
+  const sp=SPREADS[tarotState.spread], cards=shuffle(DECK).slice(0,sp.n), out=$("#tarotResult");
+  out.className="tspread "+tarotState.spread;
+  out.innerHTML=cards.map((c,i)=>{
+    const reversed=tarotState.rev && Math.random()<0.5;
+    return `<div class="tcard${reversed?" rev":""}" style="animation-delay:${(0.07*i).toFixed(2)}s">`+
+      `<div class="tc-pos">${sp.pos[i]}</div>`+
+      `<div class="tc-face"><div class="tc-mark">${c.mark}</div><div class="tc-name">${c.name}</div><div class="tc-orient">${reversed?"⟲ Reversed":"↑ Upright"}</div></div>`+
+      `<div class="tc-mean">${reversed?c.rev:c.up}</div></div>`;
+  }).join("");
+}
+function renderTarot(){
+  const t=$("#tarot");
+  t.innerHTML=`<div class="card">
+    <div class="compat-head"><h2>🔮 Tarot</h2><button class="ghost" id="tarotBack" type="button">← Back</button></div>
+    <p class="hint">Hold a question in mind, choose a spread, and draw.</p>
+    <label>Spread</label>
+    <div class="modebar" id="tarotSpreads"><button class="modebtn" data-sp="single" type="button">Single</button><button class="modebtn" data-sp="three" type="button">Three-Card</button><button class="modebtn" data-sp="celtic" type="button">Celtic Cross</button></div>
+    <label style="margin-top:14px">Options</label>
+    <button class="fchip${tarotState.rev?" on":""}" id="tarotRev" type="button">Allow reversed cards</button>
+    <button class="primary" id="tarotDraw" type="button" style="margin-top:16px">✦ Draw cards</button>
+    <div id="tarotResult" class="tspread"></div>
+    <button class="ghost" id="tarotAgain" type="button" style="width:100%;margin-top:14px;display:none">↻ Draw again</button>
+    </div>`;
+  const setSp=()=>t.querySelectorAll("#tarotSpreads .modebtn").forEach(b=>b.classList.toggle("on",b.dataset.sp===tarotState.spread));
+  setSp();
+  t.querySelectorAll("#tarotSpreads .modebtn").forEach(b=>b.onclick=()=>{tarotState.spread=b.dataset.sp;setSp();});
+  $("#tarotRev").onclick=()=>{tarotState.rev=!tarotState.rev;$("#tarotRev").classList.toggle("on",tarotState.rev);};
+  const draw=()=>{drawSpread();$("#tarotAgain").style.display="block";$("#tarotResult").scrollIntoView({behavior:"smooth",block:"nearest"});};
+  $("#tarotDraw").onclick=draw; $("#tarotAgain").onclick=draw;
+  $("#tarotBack").onclick=closeTarot;
+}
+function openTarot(){ $("#form").style.display="none"; $("#reading").style.display="none"; $("#compat").style.display="none"; const t=$("#tarot"); t.style.display="block"; renderTarot(); t.scrollIntoView({behavior:"smooth",block:"start"}); }
+function closeTarot(){ $("#tarot").style.display="none"; $("#form").style.display=""; window.scrollTo({top:0,behavior:"smooth"}); }
+$("#tarotBtn").onclick=openTarot;
 
 $("#disc").textContent="";
 </script>
