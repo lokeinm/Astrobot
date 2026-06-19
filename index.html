@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1" />
+<title>Astrobot — Daily Sky Almanac</title>
+<meta name="theme-color" content="#0e1117" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Astrobot" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230e1117'/%3E%3Cpath d='M118 90a34 34 0 1 1-24-32 26 26 0 1 0 24 32z' fill='%23c9a45c'/%3E%3Cg fill='%23ece3d0'%3E%3Ccircle cx='52' cy='54' r='2.4'/%3E%3Ccircle cx='128' cy='128' r='2'/%3E%3Ccircle cx='60' cy='120' r='1.6'/%3E%3C/g%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=Spectral:ital,wght@0,300;0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --ink:#0e1117; --ink-2:#141b26; --panel:#171f2c; --panel-2:#1c2735;
+    --line:#2b3647; --cream:#ece3d0; --cream-dim:#b9b09b;
+    --gold:#c9a45c; --gold-bright:#e3bd72; --terra:#bb6a4c; --sage:#8a9b78;
+    --shadow:0 20px 60px -25px rgba(0,0,0,.8);
+    --sym:'Apple Symbols','Segoe UI Symbol','Noto Sans Symbols2';
+    --serif:'Cormorant Garamond',var(--sym),serif; --body:'Spectral',Georgia,var(--sym),serif; --mono:'IBM Plex Mono',var(--sym),monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(120% 90% at 50% -10%, #1a2435 0%, var(--ink) 55%, #090c12 100%);
+    color:var(--cream); font-family:var(--body); font-weight:400;
+    line-height:1.6; min-height:100vh; overflow-x:hidden;
+    -webkit-font-smoothing:antialiased; letter-spacing:.1px;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+  /* starfield + grain atmosphere */
+  body::before{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 80% 20%, #fff 50%, transparent),
+      radial-gradient(1.4px 1.4px at 65% 65%, var(--gold-bright) 50%, transparent),
+      radial-gradient(1px 1px at 35% 80%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 12% 70%, #cdd 50%, transparent),
+      radial-gradient(1.2px 1.2px at 90% 75%, #fff 50%, transparent),
+      radial-gradient(1px 1px at 50% 12%, #fff 50%, transparent);
+    animation:twinkle 7s ease-in-out infinite alternate;
+  }
+  body::after{
+    content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.04; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  @keyframes twinkle{from{opacity:.35}to{opacity:.6}}
+  .wrap{position:relative; z-index:1; max-width:680px; margin:0 auto; padding:0 20px 80px}
+
+  /* ---------- Header ---------- */
+  header{position:relative; text-align:center; padding:54px 0 26px}
+  .ring{
+    position:absolute; top:-30px; left:50%; width:300px; height:300px; transform:translateX(-50%);
+    opacity:.16; pointer-events:none; animation:spin 140s linear infinite;
+  }
+  @keyframes spin{to{transform:translateX(-50%) rotate(360deg)}}
+  .eyebrow{font-family:var(--mono); font-size:11px; letter-spacing:.42em; text-transform:uppercase; color:var(--gold); margin:0 0 10px}
+  h1{font-family:var(--serif); font-weight:500; font-size:clamp(46px,13vw,76px); line-height:.92; margin:0; letter-spacing:.5px}
+  h1 .amp{font-style:italic; color:var(--gold)}
+  .sub{font-style:italic; color:var(--cream-dim); margin:12px 0 0; font-size:18px}
+
+  /* ---------- Cards ---------- */
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line); border-radius:18px; padding:22px 22px 24px; margin:18px 0;
+    box-shadow:var(--shadow); position:relative; overflow:hidden;
+  }
+  .card::before{content:""; position:absolute; inset:0 0 auto 0; height:1px;
+    background:linear-gradient(90deg,transparent,rgba(227,189,114,.5),transparent)}
+
+  label{display:block; font-family:var(--mono); font-size:11px; letter-spacing:.18em; text-transform:uppercase; color:var(--cream-dim); margin:0 0 7px}
+  .field{margin:0 0 16px}
+  input,select{
+    width:100%; background:var(--ink-2); border:1px solid var(--line); color:var(--cream);
+    font-family:var(--body); font-size:16px; padding:13px 14px; border-radius:11px; outline:none; transition:border-color .2s,box-shadow .2s;
+    -webkit-appearance:none; appearance:none;
+  }
+  input:focus,select:focus{border-color:var(--gold); box-shadow:0 0 0 3px rgba(201,164,92,.14)}
+  input::placeholder{color:#5e6b7e}
+  .row{display:flex; gap:12px; flex-wrap:wrap}
+  .row > *{flex:1 1 0; min-width:130px}
+  .hint{font-size:13px; color:var(--cream-dim); font-style:italic; margin:6px 0 0}
+  .cityrow{display:flex; gap:8px}
+  .cityrow input{flex:1}
+  .cityrow button{flex:0 0 auto}
+
+  .goals{display:flex; flex-wrap:wrap; gap:9px; margin-top:4px}
+  .chip{
+    font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:var(--cream-dim);
+    border:1px solid var(--line); background:var(--ink-2); padding:9px 13px; border-radius:999px; cursor:pointer;
+    transition:all .18s; user-select:none;
+  }
+  .chip[aria-pressed="true"]{color:var(--ink); background:var(--gold); border-color:var(--gold); font-weight:500}
+
+  button.primary{
+    width:100%; margin-top:6px; background:linear-gradient(180deg,var(--gold-bright),var(--gold));
+    color:#1a130a; border:none; font-family:var(--mono); font-weight:500; letter-spacing:.16em; text-transform:uppercase;
+    font-size:13px; padding:16px; border-radius:12px; cursor:pointer; transition:transform .12s,filter .2s; box-shadow:0 10px 30px -12px rgba(201,164,92,.6);
+  }
+  button.primary:active{transform:translateY(1px)}
+  button.primary:disabled{filter:grayscale(.5) brightness(.7); cursor:wait}
+  button.ghost{
+    background:var(--ink-2); color:var(--cream-dim); border:1px solid var(--line);
+    font-family:var(--mono); font-size:12px; padding:13px 14px; border-radius:11px; cursor:pointer; letter-spacing:.06em;
+  }
+
+  /* ---------- Reading ---------- */
+  #reading{display:none}
+  .dateline{text-align:center; margin:8px 0 4px}
+  .dateline .d{font-family:var(--serif); font-size:30px}
+  .dateline .l{font-family:var(--mono); font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:var(--gold)}
+
+  .sky{display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:10px; margin:4px 0 6px}
+  .sky .b{background:var(--ink-2); border:1px solid var(--line); border-radius:13px; padding:12px 10px; text-align:center}
+  .sky .glyph{font-size:22px; color:var(--gold)}
+  .sky .nm{font-family:var(--mono); font-size:9.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--cream-dim); margin-top:3px}
+  .sky .pos{font-family:var(--serif); font-size:17px; margin-top:1px}
+  .sky .rx{color:var(--terra); font-size:11px; font-family:var(--mono)}
+
+  section.read{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+    border-radius:16px; padding:20px 20px 22px; margin:14px 0; box-shadow:var(--shadow);
+    opacity:0; transform:translateY(14px); animation:rise .7s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes rise{to{opacity:1; transform:none}}
+  section.read .no{font-family:var(--mono); font-size:11px; color:var(--gold); letter-spacing:.2em}
+  section.read h2{font-family:var(--serif); font-weight:500; font-size:25px; margin:2px 0 12px; line-height:1.1}
+  section.read p{margin:0 0 10px; color:#ded6c4}
+  section.read p:last-child{margin-bottom:0}
+  section.read ul{margin:2px 0 0; padding:0; list-style:none}
+  section.read li{position:relative; padding:9px 0 9px 22px; border-top:1px dashed var(--line)}
+  section.read li:first-child{border-top:none}
+  section.read li::before{content:"✦"; position:absolute; left:0; top:9px; color:var(--gold); font-size:12px}
+  section.read li .t{font-family:var(--mono); font-size:12.5px; color:var(--gold-bright); letter-spacing:.03em}
+  section.read li .m{display:block; color:#ccc4b2; font-size:15.5px; margin-top:2px}
+  section.read li .ex{display:block; margin-top:8px; padding:9px 12px; font-size:14.5px;
+    background:rgba(201,164,92,.08); border-left:2px solid var(--gold); border-radius:0 8px 8px 0; color:#e7ddc8}
+  section.read li .ex b{font-family:var(--mono); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold); display:block; margin-bottom:2px}
+  section.read li .dur{display:block; margin-top:3px; font-size:12.5px; color:#9aa6b4}
+  section.read li .dur .sep{color:#5e6b7e; margin:0 5px}
+  section.read li .hmap{display:block; margin-top:3px; font-size:13px; color:#b9c2bf}
+  section.read li .hmap b{color:var(--gold-bright); font-weight:500}
+
+  .theme-card{background:linear-gradient(150deg,#23304a,#171f2c); border-color:#33405a}
+  .theme-card h2{font-size:29px; color:var(--cream)}
+  .theme-card .lead{font-size:19px; font-style:italic; color:var(--cream)}
+
+  .affirm{text-align:center; background:radial-gradient(120% 120% at 50% 0%,#272015,#171f2c)}
+  .affirm .q{font-family:var(--serif); font-style:italic; font-size:25px; line-height:1.3; color:var(--gold-bright)}
+
+  .tag{display:inline-block; font-family:var(--mono); font-size:10px; letter-spacing:.12em; text-transform:uppercase;
+    color:var(--ink); background:var(--sage); border-radius:5px; padding:2px 7px; margin-left:7px; vertical-align:middle}
+  .window{display:flex; align-items:center; gap:14px}
+  .window .clock{font-family:var(--serif); font-size:42px; color:var(--gold); line-height:1}
+  .disc{font-size:12.5px; color:#7e8a98; font-style:italic; text-align:center; margin:26px 0 0; padding:0 8px}
+  .footer-btns{display:flex; gap:10px; margin:18px 0 0}
+  .footer-btns button{flex:1}
+  .err{color:var(--terra); font-family:var(--mono); font-size:13px; margin-top:10px}
+  .loading{display:none; text-align:center; font-style:italic; color:var(--cream-dim); padding:30px 0}
+  .loading.on{display:block}
+  .spinner{width:34px; height:34px; margin:0 auto 12px; border:2px solid var(--line); border-top-color:var(--gold); border-radius:50%; animation:spin 1s linear infinite}
+
+  /* ── approx note ── */
+  .approx-note{font-size:13.5px; color:#a9a18d; font-style:italic; background:rgba(201,164,92,.06);
+    border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:14px 0}
+
+  /* ── HERO ── */
+  .hero{position:relative; overflow:hidden; border:1px solid #33405a; border-radius:18px; padding:20px;
+    margin:16px 0 4px; background:linear-gradient(135deg,#26324c,#171f2c 70%);
+    background-size:200% 200%; animation:heroDrift 16s ease-in-out infinite}
+  @keyframes heroDrift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .hero-moon{font-family:var(--mono); font-size:12px; letter-spacing:.12em; color:var(--gold-bright); text-transform:uppercase}
+  .hero-line{font-family:var(--serif); font-style:italic; font-size:26px; line-height:1.15; color:var(--cream); margin:8px 0 14px}
+  .hero-chips{display:flex; flex-wrap:wrap; gap:8px}
+  .hchip{font-family:var(--mono); font-size:12px; letter-spacing:.04em; color:var(--cream);
+    background:rgba(255,255,255,.06); border:1px solid var(--line); border-radius:999px;
+    padding:7px 13px; cursor:pointer; transition:transform .12s,background .2s,border-color .2s}
+  .hchip:hover{background:rgba(201,164,92,.16); border-color:var(--gold)}
+  .hchip:active{transform:scale(.95)}
+
+  /* ── GOAL FILTER BAR ── */
+  .filterbar{display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin:14px 0 4px}
+  .fl-label{font-family:var(--mono); font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--cream-dim); margin-right:2px}
+  .fchip{font-family:var(--mono); font-size:11.5px; color:var(--cream-dim); text-transform:capitalize;
+    background:var(--ink-2); border:1px solid var(--line); border-radius:999px; padding:6px 12px;
+    cursor:pointer; transition:all .18s}
+  .fchip:hover{color:var(--cream); border-color:var(--gold)}
+  .fchip.on{color:var(--ink); background:var(--gold); border-color:var(--gold); font-weight:600}
+
+  /* ── TABS ── */
+  .tabbar{position:sticky; top:0; z-index:5; display:flex; gap:4px; margin:12px -4px 0; padding:6px 4px;
+    background:linear-gradient(var(--ink) 70%,transparent); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px)}
+  .tab{flex:1; font-family:var(--mono); font-size:12px; letter-spacing:.06em; color:var(--cream-dim);
+    background:transparent; border:1px solid transparent; border-radius:11px; padding:10px 6px; cursor:pointer;
+    transition:all .2s}
+  .tab:hover{color:var(--cream)}
+  .tab.on{color:var(--ink); background:var(--gold); border-color:var(--gold); font-weight:600; box-shadow:0 8px 22px -12px rgba(201,164,92,.8)}
+  .panel{display:none}
+  .panel.active{display:block; animation:panelIn .42s cubic-bezier(.2,.7,.2,1)}
+  @keyframes panelIn{from{opacity:0; transform:translateY(10px)}to{opacity:1; transform:none}}
+
+  /* dimmed when a goal filter excludes an item */
+  [data-goals]{transition:opacity .3s,filter .3s}
+  [data-goals].dim{opacity:.32; filter:saturate(.4)}
+
+  /* ── TRANSIT TIMELINE ── */
+  .timeline{border:1px solid var(--line); border-radius:14px; padding:16px 16px 12px; margin:8px 0 14px; background:var(--panel)}
+  .tl-head{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold);
+    display:flex; justify-content:space-between; align-items:baseline; margin-bottom:26px}
+  .tl-head span{font-size:9.5px; letter-spacing:.08em; color:var(--cream-dim); text-transform:none}
+  .tl-track{position:relative; height:42px; margin:0 6px;
+    background:linear-gradient(90deg,transparent,var(--line) 49%,var(--line) 51%,transparent);
+    background-size:100% 2px; background-position:0 22px; background-repeat:no-repeat}
+  .tl-now{position:absolute; left:50%; top:-4px; bottom:8px; width:1px; background:repeating-linear-gradient(var(--gold) 0 3px,transparent 3px 7px); opacity:.6}
+  .tl-now::after{content:"exact"; position:absolute; top:-14px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:8.5px; letter-spacing:.1em; color:var(--gold)}
+  .tl-item{position:absolute; top:0; transform:translateX(-50%)}
+  .tl-bar{position:absolute; top:20px; height:4px; border-radius:3px; opacity:.5; background:currentColor}
+  .tl-dot{position:absolute; top:16px; left:-6px; width:12px; height:12px; border-radius:50%;
+    background:currentColor; box-shadow:0 0 0 3px var(--panel)}
+  .tl-lab{position:absolute; top:30px; left:50%; transform:translateX(-50%); white-space:nowrap;
+    font-size:13px; color:var(--cream)}
+  .tl-item.nat-flowing{color:var(--sage)} .tl-item.nat-dynamic{color:var(--terra)} .tl-item.nat-fusing{color:#6f8fc9}
+  .tl-legend{display:flex; gap:14px; justify-content:center; margin-top:14px;
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.06em; text-transform:uppercase; color:var(--cream-dim)}
+  .tl-legend span{display:flex; align-items:center; gap:5px}
+  .tl-legend span::before{content:"●"; font-size:11px}
+  .tl-legend .nat-flowing::before{color:var(--sage)} .tl-legend .nat-dynamic::before{color:var(--terra)} .tl-legend .nat-fusing::before{color:#6f8fc9}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <svg class="ring" viewBox="0 0 200 200" aria-hidden="true">
+      <circle cx="100" cy="100" r="92" fill="none" stroke="#c9a45c" stroke-width="1"/>
+      <circle cx="100" cy="100" r="74" fill="none" stroke="#c9a45c" stroke-width=".6" stroke-dasharray="2 6"/>
+      <g fill="#c9a45c" font-family="serif" font-size="13" text-anchor="middle">
+        <text x="100" y="20">♈</text><text x="146" y="33">♉</text><text x="178" y="66">♊</text>
+        <text x="190" y="105">♋</text><text x="178" y="142">♌</text><text x="146" y="174">♍</text>
+        <text x="100" y="188">♎</text><text x="54" y="174">♏</text><text x="22" y="142">♐</text>
+        <text x="11" y="105">♑</text><text x="22" y="66">♒</text><text x="54" y="33">♓</text>
+      </g>
+    </svg>
+    <p class="eyebrow">Daily Sky Almanac</p>
+    <h1>Astro<span class="amp">·</span>bot</h1>
+    <p class="sub">Real transits, read in your favor.</p>
+  </header>
+
+  <!-- ============ INPUT ============ -->
+  <div id="form">
+    <div class="card">
+      <div class="field">
+        <label for="bdate">Date of birth</label>
+        <input type="date" id="bdate" />
+      </div>
+      <div class="field">
+        <label for="btime">Time of birth</label>
+        <input type="time" id="btime" />
+        <p class="hint">Unknown? Leave blank — I'll use noon and note that houses & Moon are approximate.</p>
+      </div>
+      <div class="field">
+        <label for="city">Birth place</label>
+        <div class="cityrow">
+          <input type="text" id="city" placeholder="City, Country" autocomplete="off" />
+          <button class="ghost" id="findcity" type="button">Find</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <div><label for="lat">Latitude</label><input type="number" id="lat" step="0.0001" placeholder="40.7128" /></div>
+          <div><label for="lon">Longitude</label><input type="number" id="lon" step="0.0001" placeholder="-74.0060" /></div>
+        </div>
+        <p class="hint" id="cityhint">East is positive longitude, West is negative. North latitude positive.</p>
+      </div>
+      <div class="field">
+        <label for="tz">Birth time zone</label>
+        <select id="tz"></select>
+        <p class="hint">Pick the place's time zone — daylight-saving for your birth date is handled automatically. Tapping <b>Find</b> above sets this for you.</p>
+      </div>
+      <div class="field">
+        <label>What are you focusing on? (pick any)</label>
+        <div class="goals" id="goals"></div>
+      </div>
+      <button class="primary" id="go" type="button">Read today's sky</button>
+      <div class="err" id="err"></div>
+    </div>
+  </div>
+
+  <div class="loading" id="loading"><div class="spinner"></div>Aligning the planets…</div>
+
+  <!-- ============ READING ============ -->
+  <div id="reading"></div>
+
+  <p class="disc" id="disc"></p>
+</div>
+
+<script type="module">
+import * as Astronomy from "https://esm.sh/astronomy-engine@2.1.19";
+
+/* ───────────────────────── Reference data ───────────────────────── */
+const SIGNS = [
+  {n:"Aries",g:"♈",el:"Fire",mo:"Cardinal",ruler:"Mars",key:"bold initiation"},
+  {n:"Taurus",g:"♉",el:"Earth",mo:"Fixed",ruler:"Venus",key:"steady building"},
+  {n:"Gemini",g:"♊",el:"Air",mo:"Mutable",ruler:"Mercury",key:"curious exchange"},
+  {n:"Cancer",g:"♋",el:"Water",mo:"Cardinal",ruler:"Moon",key:"nurturing depth"},
+  {n:"Leo",g:"♌",el:"Fire",mo:"Fixed",ruler:"Sun",key:"warm expression"},
+  {n:"Virgo",g:"♍",el:"Earth",mo:"Mutable",ruler:"Mercury",key:"careful refinement"},
+  {n:"Libra",g:"♎",el:"Air",mo:"Cardinal",ruler:"Venus",key:"balance & relating"},
+  {n:"Scorpio",g:"♏",el:"Water",mo:"Fixed",ruler:"Pluto",key:"deep transformation"},
+  {n:"Sagittarius",g:"♐",el:"Fire",mo:"Mutable",ruler:"Jupiter",key:"expansive vision"},
+  {n:"Capricorn",g:"♑",el:"Earth",mo:"Cardinal",ruler:"Saturn",key:"disciplined climb"},
+  {n:"Aquarius",g:"♒",el:"Air",mo:"Fixed",ruler:"Uranus",key:"original thinking"},
+  {n:"Pisces",g:"♓",el:"Water",mo:"Mutable",ruler:"Neptune",key:"intuitive flow"},
+];
+const PLANETS = [
+  {n:"Sun",g:"☉",body:Astronomy.Body.Sun,personal:true,lum:true,theme:"your identity, vitality and sense of purpose",short:"vitality"},
+  {n:"Moon",g:"☽",body:Astronomy.Body.Moon,personal:true,lum:true,theme:"your emotions, instincts and inner world",short:"emotion"},
+  {n:"Mercury",g:"☿",body:Astronomy.Body.Mercury,personal:true,theme:"your thinking, communication and plans",short:"the mind"},
+  {n:"Venus",g:"♀",body:Astronomy.Body.Venus,personal:true,theme:"love, money, beauty and what you value",short:"love & worth"},
+  {n:"Mars",g:"♂",body:Astronomy.Body.Mars,personal:true,theme:"your drive, courage and how you take action",short:"drive"},
+  {n:"Jupiter",g:"♃",body:Astronomy.Body.Jupiter,theme:"growth, luck, opportunity and expansion",short:"opportunity"},
+  {n:"Saturn",g:"♄",body:Astronomy.Body.Saturn,theme:"structure, discipline and long-term commitment",short:"structure"},
+  {n:"Uranus",g:"♅",body:Astronomy.Body.Uranus,theme:"change, freedom and sudden insight",short:"awakening"},
+  {n:"Neptune",g:"♆",body:Astronomy.Body.Neptune,theme:"intuition, dreams and spiritual sensitivity",short:"intuition"},
+  {n:"Pluto",g:"♇",body:Astronomy.Body.Pluto,theme:"transformation, power and deep renewal",short:"renewal"},
+];
+const ASPECTS = [
+  {n:"conjunction",ang:0,orb:8,nat:"fusing",verb:"unites with",sym:"☌"},
+  {n:"sextile",ang:60,orb:5,nat:"flowing",verb:"supports",sym:"⚹"},
+  {n:"square",ang:90,orb:6,nat:"dynamic",verb:"challenges",sym:"□"},
+  {n:"trine",ang:120,orb:7,nat:"flowing",verb:"harmonizes with",sym:"△"},
+  {n:"opposition",ang:180,orb:8,nat:"dynamic",verb:"opposes",sym:"☍"},
+];
+const HOUSES = [
+  {h:1,theme:"self, body, fresh starts",areas:["confidence","healing"]},
+  {h:2,theme:"money, values, resources",areas:["money"]},
+  {h:3,theme:"communication, learning, local moves",areas:["creativity","career"]},
+  {h:4,theme:"home, family, emotional roots",areas:["healing"]},
+  {h:5,theme:"creativity, romance, play",areas:["love","creativity"]},
+  {h:6,theme:"work, health, daily routine",areas:["career","healing"]},
+  {h:7,theme:"partnership, one-to-one relating",areas:["love"]},
+  {h:8,theme:"intimacy, shared money, transformation",areas:["money","healing"]},
+  {h:9,theme:"vision, travel, belief, study",areas:["spiritual growth"]},
+  {h:10,theme:"career, reputation, ambition",areas:["career"]},
+  {h:11,theme:"friends, networks, hopes",areas:["career","love"]},
+  {h:12,theme:"rest, intuition, the unseen",areas:["spiritual growth","healing"]},
+];
+// short arena tag + a concrete, planet-agnostic example for each house (1–12)
+const HOUSE_INFO={
+  1:{tag:"self & body",ex:"how you show up, your appearance, vitality, and personal fresh starts"},
+  2:{tag:"money & values",ex:"your income, spending, possessions, and sense of self-worth"},
+  3:{tag:"communication",ex:"conversations, texts, errands, learning, and your day-to-day surroundings"},
+  4:{tag:"home & family",ex:"your home, family, and private emotional base — nesting and roots"},
+  5:{tag:"creativity & romance",ex:"creative projects, dating, play, and self-expression"},
+  6:{tag:"work & health",ex:"daily work, routines, habits, and taking care of your body"},
+  7:{tag:"partnership",ex:"close one-to-one relationships — collaborating, negotiating, committing"},
+  8:{tag:"intimacy & shared resources",ex:"deep bonds, shared money, debts, and psychological change"},
+  9:{tag:"vision & travel",ex:"the big picture — travel, study, beliefs, and expanding horizons"},
+  10:{tag:"career & reputation",ex:"your career, public standing, and long-term ambitions"},
+  11:{tag:"friends & networks",ex:"friends, groups, networking, and your long-range hopes"},
+  12:{tag:"rest & the unseen",ex:"solitude, intuition, dreams, and releasing what's done"},
+};
+// present-tense focus verb for each transiting planet (used in the houses breakdown)
+const PLANET_FOCUS={
+  Sun:"shines a spotlight on",      Moon:"brings shifting feeling and focus to",
+  Mercury:"busies your mind and conversations around", Venus:"sweetens and draws warmth toward",
+  Mars:"energizes and drives action in", Jupiter:"expands and opens opportunity in",
+  Saturn:"asks for structure and commitment in", Uranus:"shakes up and brings change to",
+  Neptune:"softens, inspires, and blurs", Pluto:"deepens and slowly transforms",
+};
+const PHASES = [
+  {n:"New Moon",adv:"a clean slate for planting intentions",act:"set a private intention or start something small"},
+  {n:"Waxing Crescent",adv:"building momentum on a fresh start",act:"take the first practical step and stay consistent"},
+  {n:"First Quarter",adv:"a push that asks for a decision",act:"make a choice and act through the small resistance"},
+  {n:"Waxing Gibbous",adv:"refining and adjusting before the peak",act:"polish your work and stay the course"},
+  {n:"Full Moon",adv:"culmination, clarity and emotional fullness",act:"celebrate a result, release what's complete, notice what's revealed"},
+  {n:"Waning Gibbous",adv:"sharing, gratitude and digestion",act:"give back, teach, or integrate what you've learned"},
+  {n:"Last Quarter",adv:"a turning point that asks you to let go",act:"clear, edit, forgive, or finish loose ends"},
+  {n:"Waning Crescent",adv:"rest, reflection and surrender",act:"slow down, restore, and protect your energy"},
+];
+const GOALS=["love","money","career","creativity","healing","confidence","spiritual growth"];
+const D2R=Math.PI/180, R2D=180/Math.PI;
+const mod=(x,m)=>((x%m)+m)%m;
+
+/* ───────────────────────── Astronomy ───────────────────────── */
+const hasECT = typeof Astronomy.Rotation_EQJ_ECT === "function";
+function eclLon(body,date){               // geocentric apparent ecliptic longitude (tropical), true ecliptic of date
+  const t=Astronomy.MakeTime(date);
+  const v=Astronomy.GeoVector(body,t,true);
+  if(hasECT){
+    const r=Astronomy.RotateVector(Astronomy.Rotation_EQJ_ECT(t),v);
+    return mod(Math.atan2(r.y,r.x)*R2D,360);
+  }
+  const e=Astronomy.Ecliptic(v); return mod(e.elon,360);
+}
+function isRetro(body,date){
+  const a=eclLon(body,date), b=eclLon(body,new Date(date.getTime()+86400000));
+  let d=b-a; if(d>180)d-=360; if(d<-180)d+=360; return d<0;
+}
+function meanObliquity(date){
+  const t=(Astronomy.MakeTime(date).ut)/36525;
+  return 23.439291 - (46.8150*t + 0.00059*t*t - 0.001813*t*t*t)/3600;
+}
+function ascendant(date,latDeg,lonDeg){
+  const t=Astronomy.MakeTime(date);
+  const gast=Astronomy.SiderealTime(t);            // hours
+  const ramc=mod(gast*15+lonDeg,360);              // local sidereal time in degrees
+  const eps=meanObliquity(date), R=ramc*D2R, E=eps*D2R, L=latDeg*D2R;
+  let asc=Math.atan2(Math.cos(R), -(Math.sin(R)*Math.cos(E)+Math.tan(L)*Math.sin(E)))*R2D;
+  asc=mod(asc,360);
+  const mc=mod(Math.atan2(Math.sin(R),Math.cos(R)*Math.cos(E))*R2D,360);
+  if(mod(asc-mc,360)>180) asc=mod(asc+180,360);    // keep Asc on the eastern horizon
+  return asc;
+}
+const signOf=lon=>Math.floor(mod(lon,360)/30);
+const fmtPos=lon=>{const s=signOf(lon),d=mod(lon,360)-s*30;return `${Math.floor(d)}° ${SIGNS[s].g}`;};
+
+function chartFor(date,lat,lon,withAngles){
+  const planets=PLANETS.map(p=>{
+    const l=eclLon(p.body,date), si=signOf(l);
+    return {...p, lon:l, sign:si, retro:(!p.lum)&&isRetro(p.body,date)};
+  });
+  let ascSign=null;
+  if(withAngles && lat!=null && lon!=null) ascSign=signOf(ascendant(date,lat,lon));
+  return {planets, ascSign, date};
+}
+const houseOf=(signIdx,ascSign)=> ascSign==null?null:mod(signIdx-ascSign,12)+1;
+function ord(n){const s=["th","st","nd","rd"],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+const houseTag=h=> `${ord(h)} house (${HOUSE_INFO[h].tag})`;
+// signed daily motion in ecliptic longitude (°/day); negative = retrograde
+function dailySpeed(body,date){
+  const a=eclLon(body,date), b=eclLon(body,new Date(date.getTime()+86400000));
+  let d=b-a; if(d>180)d-=360; if(d<-180)d+=360; return d;
+}
+const orbAt=(tpLon,npLon,ang)=>{let diff=Math.abs(tpLon-npLon); if(diff>180)diff=360-diff; return Math.abs(diff-ang);};
+// plain-language duration + phase for an aspect, from the transiting planet's real speed.
+// Returns structured data so the text line AND the visual timeline share one source of truth.
+function transitInfo(a,date){
+  const sp=dailySpeed(a.tp.body,date), speed=Math.abs(sp);
+  let days, window;
+  if(speed<1e-3){ days=600; window="a slow, months-long backdrop"; }
+  else {
+    days=(2*a.asp.orb)/speed;                  // total time the aspect stays within orb
+    if(days<0.45)      window="in effect a few hours";
+    else if(days<1.5)  window="active for about a day";
+    else if(days<4.5)  window=`active for ~${Math.round(days)} days`;
+    else if(days<9)    window="in effect all week";
+    else if(days<35)   window=`a multi-week transit (~${Math.max(2,Math.round(days/7))} weeks)`;
+    else if(days<150)  window=`a months-long backdrop (~${Math.round(days/30)} months)`;
+    else if(days<450)  window="a slow, year-long-scale transit";
+    else               window="a very slow, multi-year backdrop";
+  }
+  const orbTom=orbAt(mod(a.tp.lon+sp,360),a.np.lon,a.asp.ang);
+  const phase = a.orb<0.6?"exact":(orbTom<a.orb?"applying":"separating");
+  const phaseLabel = phase==="exact"?"exact right about now":phase==="applying"?"building toward exact":"now easing off";
+  return {days, window, phase, phaseLabel, text:`${window}<span class="sep">·</span>${phaseLabel}`};
+}
+// goal tags per planet — used by the interactive goal filters (which transits serve which goal)
+const PLANET_GOALS={
+  Sun:["confidence","creativity"],            Moon:["healing","love"],
+  Mercury:["career","creativity"],            Venus:["love","money"],
+  Mars:["confidence","career"],               Jupiter:["career","money","spiritual growth"],
+  Saturn:["career","money"],                  Uranus:["creativity","confidence"],
+  Neptune:["spiritual growth","healing","creativity"], Pluto:["healing","spiritual growth"],
+};
+// tag by the NATAL planet — the part of your chart the transit activates (more discriminating filter)
+const goalsFor=a=>(PLANET_GOALS[a.np.n]||[]).join(" ");
+
+function aspectsBetween(transit,natal){
+  const out=[];
+  for(const tp of transit.planets) for(const np of natal.planets){
+    let diff=Math.abs(tp.lon-np.lon); if(diff>180)diff=360-diff;
+    for(const a of ASPECTS){
+      const orb=Math.abs(diff-a.ang);
+      if(orb<=a.orb){
+        const score=(a.orb-orb)+(tp.personal?2:0)+(np.personal?2:0)+(tp.lum||np.lum?2:0);
+        out.push({tp,np,asp:a,orb,score});
+      }
+    }
+  }
+  return out.sort((x,y)=>y.score-x.score);
+}
+
+/* ───────────────────────── Interpretation ───────────────────────── */
+const cap=s=>s.charAt(0).toUpperCase()+s.slice(1);
+function blend(a){
+  const {tp,np,asp}=a;
+  if(asp.nat==="flowing")
+    return `a supportive opening where ${tp.short} flows easily toward ${np.short}. ${cap(tp.theme.split(",")[0])} cooperates with ${np.theme.split(" and ")[0]}, so progress here feels natural — lean in.`;
+  if(asp.nat==="fusing")
+    return `a bright spotlight merging ${tp.short} with ${np.short}. Whatever you begin or focus on here is amplified, so set your intention with care and use the charge on purpose.`;
+  return `a growth point: ${tp.short} is pressing on ${np.short}. It isn't bad luck — it's friction asking for balance. Slow down, adjust, and you turn the tension into traction.`;
+}
+// Real-life examples are built from TWO axes so every line is distinct:
+//  • the TRANSITING planet sets HOW to act (its energy + the aspect's nature)
+//  • the NATAL planet sets WHICH life area to aim it at, with a concrete example.
+const TRANSIT_MODE={
+  Sun:    {flow:"Put yourself forward and let yourself be seen",      fuse:"Anchor your identity and set a clear intention", dyn:"Stay centered if your confidence or an authority figure gets challenged"},
+  Moon:   {flow:"Lead with feeling and tend to what comforts you",    fuse:"Tune into your emotional needs",                 dyn:"Slow down before reacting if emotions spike"},
+  Mercury:{flow:"Communicate clearly and make your case",             fuse:"Get your thoughts and plans organized",          dyn:"Double-check facts and avoid miscommunication"},
+  Venus:  {flow:"Lead with warmth, charm and good taste",             fuse:"Invest in what — and who — you value",            dyn:"Go easy on impulse spending and relationship friction"},
+  Mars:   {flow:"Take decisive action and push something forward",    fuse:"Aim your energy at one bold move",                dyn:"Channel restlessness into effort, not conflict"},
+  Jupiter:{flow:"Think bigger and say yes to opportunity",            fuse:"Set a growth move in motion",                    dyn:"Take the opportunity, but don't over-promise"},
+  Saturn: {flow:"Build something solid and commit for the long run",  fuse:"Get serious about one commitment",               dyn:"Treat the obstacle as a test and tighten your plan"},
+  Uranus: {flow:"Try a fresh, unconventional approach",               fuse:"Give yourself room to do it differently",        dyn:"Stay flexible when plans change suddenly"},
+  Neptune:{flow:"Let intuition and creativity lead",                  fuse:"Make space to dream and create",                 dyn:"Verify before trusting anything that feels foggy"},
+  Pluto:  {flow:"Go deep and transform something at the root",        fuse:"Release what has run its course",                dyn:"Loosen your grip on what you can't control"}
+};
+const NATAL_AREA={
+  Sun:    {area:"your confidence and visibility",            flow:"e.g. share your work, lead a moment, or take the credit you've earned",        dyn:"e.g. don't let one piece of criticism dim how you show up"},
+  Moon:   {area:"home, family and your emotional life",      flow:"e.g. reconnect with family, make your space cozy, or have a heart-to-heart",    dyn:"e.g. protect your peace and don't take a moody moment personally"},
+  Mercury:{area:"your messages, ideas and daily plans",      flow:"e.g. send the email, pitch the idea, study, or map out the week",               dyn:"e.g. reread that text before sending and confirm the details"},
+  Venus:  {area:"love, money and what you value",            flow:"e.g. reach out to someone you like, post creative work, or make a researched purchase", dyn:"e.g. pause before an impulse buy or a tense 'we need to talk'"},
+  Mars:   {area:"your projects, drive and physical energy",  flow:"e.g. ship the hard task, hit the gym, or make the bold ask",                    dyn:"e.g. burn off irritation with a workout instead of an argument"},
+  Jupiter:{area:"your growth, study and big-picture goals",  flow:"e.g. apply for the bigger thing, book the trip, or enroll in the course",       dyn:"e.g. take the chance but right-size it before committing"},
+  Saturn: {area:"your career, structure and responsibilities", flow:"e.g. set up a system, sign the long-term deal, or commit to a routine",       dyn:"e.g. meet the extra responsibility steadily instead of avoiding it"},
+  Uranus: {area:"your freedom and need to do things your way", flow:"e.g. break a stale routine or try the new tool or approach",                  dyn:"e.g. leave slack in the schedule for a surprise"},
+  Neptune:{area:"your creativity, dreams and spiritual life", flow:"e.g. make art, meditate, or act on a compassionate nudge",                    dyn:"e.g. sleep on big decisions and check the facts first"},
+  Pluto:  {area:"the deeper change you're ready for",        flow:"e.g. declutter, research deeply, or have the honest conversation",              dyn:"e.g. let go of a grudge, a habit, or the need to control an outcome"}
+};
+function realLife(tpName,npName,nature){
+  const tm=TRANSIT_MODE[tpName], na=NATAL_AREA[npName]; if(!tm||!na)return "";
+  if(nature==="dynamic") return `${tm.dyn}, especially around ${na.area} — ${na.dyn}.`;
+  const lead=nature==="fusing"?tm.fuse:tm.flow;
+  return `${lead} in ${na.area} — ${na.flow}.`;
+}
+function exSpan(a,ascSign){const t=realLife(a.tp.n,a.np.n,a.asp.nat); if(!t)return "";
+  const lab=a.asp.nat==="dynamic"?"Navigate it":"Use it";
+  const th=houseOf(a.tp.sign,ascSign), nh=houseOf(a.np.sign,ascSign);
+  let hc="";
+  if(th) hc=` Aim it at your ${houseTag(th)}${nh&&nh!==th?`, where it stirs your ${houseTag(nh)}`:""} — ${HOUSE_INFO[th].ex}.`;
+  return `<span class="ex"><b>${lab}</b>${t}${hc}</span>`;}
+function topByNature(asps,nature,n=3){return asps.filter(a=>a.asp.nat===nature).slice(0,n);}
+function involves(a,names){return names.includes(a.tp.n)||names.includes(a.np.n);}
+
+function buildReading(natal,transit,asps,goals,approx){
+  const moon=transit.planets[1], sun=transit.planets[0];
+  const moonSign=SIGNS[moon.sign];
+  const phaseAngle=Astronomy.MoonPhase(transit.date);
+  const phase=PHASES[Math.floor(mod(phaseAngle+22.5,360)/45)];
+  const retros=transit.planets.filter(p=>p.retro);
+  const flowing=topByNature(asps,"flowing",4), fusing=topByNature(asps,"fusing",3), dynamic=topByNature(asps,"dynamic",3);
+  const strongest=asps[0];
+  const dayEl=moonSign.el;
+  const sec=[];
+
+  /* 1 — theme */
+  let themeLead;
+  if(strongest){
+    const adj=strongest.asp.nat==="dynamic"?"a day to grow with intention":strongest.asp.nat==="fusing"?"a day where focus is magnified":"a day that quietly works in your favor";
+    themeLead=`The Moon moves through ${moonSign.n} (${moonSign.key}) during the ${phase.n} — ${phase.adv}. With ${strongest.tp.g} ${strongest.tp.n} ${strongest.asp.verb} your natal ${strongest.np.g} ${strongest.np.n}, it's ${adj}.`;
+  } else {
+    themeLead=`The Moon drifts through ${moonSign.n} (${moonSign.key}) during the ${phase.n} — ${phase.adv}. A softer, steadier day with no loud aspects pulling at you.`;
+  }
+  sec.push({no:"01",h:"Daily Energy Theme",tab:"today",cls:"theme-card",html:`<p class="lead">${themeLead}</p>`});
+
+  /* 2 — key transits */
+  let li=`<li><span class="t">☽ Moon in ${moonSign.n} · ${phase.n}</span><span class="m">Your emotional weather today: ${moonSign.key}. ${cap(phase.act)}.</span></li>`;
+  if(retros.length) li+=`<li><span class="t">Retrograde: ${retros.map(r=>r.g+" "+r.n).join(", ")}</span><span class="m">A natural review phase for ${retros.map(r=>r.short).join(", ")}. Not a stop sign — a re-do, re-check, re-align signal. Double back rather than push blindly.</span></li>`;
+  const timeline=asps.slice(0,5).map(a=>({a,ti:transitInfo(a,transit.date)}));
+  for(const {a,ti} of timeline.slice(0,4)){
+    const th=houseOf(a.tp.sign,natal.ascSign), nh=houseOf(a.np.sign,natal.ascSign);
+    const hmap=th?`<span class="hmap">${a.tp.g} ${a.tp.n} is moving through your <b>${houseTag(th)}</b> · your natal ${a.np.g} ${a.np.n} sits in your <b>${houseTag(nh)}</b></span>`:"";
+    li+=`<li data-goals="${goalsFor(a)}"><span class="t">${a.tp.g} ${a.tp.n} ${a.asp.sym} ${a.np.g} natal ${a.np.n} <span style="color:#7e8a98">(${a.orb.toFixed(1)}° orb)</span></span><span class="dur">⏳ ${ti.text}</span>${hmap}<span class="m">${cap(blend(a))}</span>${exSpan(a,natal.ascSign)}</li>`;
+  }
+  sec.push({no:"02",h:"Key Transits Today",tab:"transits",html:`<ul>${li}</ul>`});
+
+  /* 2b — where every transiting planet sits in your houses */
+  if(natal.ascSign!=null){
+    const rows=transit.planets.map(p=>{
+      const h=houseOf(p.sign,natal.ascSign), inf=HOUSE_INFO[h];
+      const retroNote=p.retro?` <span style="color:#7e8a98">(℞ retrograde — a review phase here, not a push)</span>`:"";
+      return `<li><span class="t">${p.g} ${p.n} — your ${houseTag(h)}${p.retro?" ℞":""}</span>`+
+        `<span class="m">${cap(PLANET_FOCUS[p.n])} your ${ord(h)} house of ${HOUSES[h-1].theme}.${retroNote}</span>`+
+        `<span class="ex"><b>e.g.</b> ${cap(inf.ex)}.</span></li>`;
+    }).join("");
+    sec.push({no:"03",h:"Where the Sky Is in Your Houses",tab:"houses",html:`<p>Beyond the exact aspects above, here's which area of life each transiting planet is lighting up right now:</p><ul>${rows}</ul>`});
+  }
+
+  /* 3 — in your favor */
+  let fav;
+  if(flowing.length||fusing.length){
+    const items=[...flowing,...fusing].slice(0,4).map(a=>`<li data-goals="${goalsFor(a)}"><span class="t">${a.tp.g} ${a.tp.n} ${a.asp.verb} natal ${a.np.n}</span><span class="m">${cap(blend(a))}</span>${exSpan(a,natal.ascSign)}</li>`).join("");
+    fav=`<p>Here's the wind at your back today — use these openings on purpose:</p><ul>${items}</ul>`;
+  } else {
+    fav=`<p>No single transit is shouting in your favor, and that's its own gift: today rewards quiet consistency. The advantage goes to whoever keeps showing up. Small, steady effort compounds with no resistance to fight.</p>`;
+  }
+  sec.push({no:"03",h:"What Is Working in Your Favor",tab:"transits",html:fav});
+
+  /* 4 — look out for */
+  let watch;
+  if(dynamic.length){
+    const items=dynamic.map(a=>`<li data-goals="${goalsFor(a)}"><span class="t">${a.tp.g} ${a.tp.n} ${a.asp.verb} natal ${a.np.n}</span><span class="m">${cap(blend(a))}</span>${exSpan(a,natal.ascSign)}</li>`).join("");
+    watch=`<p>None of this is doom — think of it as terrain to walk mindfully, not a warning:</p><ul>${items}</ul><p>Awareness alone defuses most of it. Name the tension, breathe, and choose your response.</p>`;
+  } else {
+    watch=`<p>The sky is unusually clear of friction today. The main thing to watch is your own pacing — with little external resistance, it's easy to over-commit. Protect your energy and don't say yes to more than you can carry well.</p>`;
+  }
+  sec.push({no:"04",h:"What to Look Out For",tab:"transits",html:watch});
+
+  /* 5 — best moves */
+  const moves=[];
+  moves.push(`Anchor the day around the ${phase.n}: ${phase.act}.`);
+  if(flowing[0]) moves.push(`Use the ${flowing[0].tp.n}–${flowing[0].np.n} flow for anything involving ${flowing[0].np.theme.split(",")[0]} — it'll move with less effort than usual.`);
+  if(dynamic[0]) moves.push(`Where ${dynamic[0].tp.n} presses on your ${dynamic[0].np.n}, choose patience over force; revisit it later instead of forcing a result now.`);
+  if(retros.length) moves.push(`With ${retros[0].n} retrograde, favour review over launch: edit, confirm, and re-read before you send or sign.`);
+  moves.push(`Match your effort to the ${dayEl} mood: ${dayEl==="Fire"?"act on instinct and start things":dayEl==="Earth"?"handle practical, tangible tasks":dayEl==="Air"?"connect, write, and exchange ideas":"trust feeling and tend to what matters emotionally"}.`);
+  sec.push({no:"05",h:"Best Moves Today",tab:"today",html:`<ul>${moves.map(m=>`<li><span class="m">${m}</span></li>`).join("")}</ul>`});
+
+  /* 6 — money & career */
+  const mcNames=["Mercury","Mars","Jupiter","Saturn"];
+  const mcAsp=asps.filter(a=>involves(a,mcNames)).slice(0,2);
+  let mc=`<p>`;
+  if(mcAsp.length){
+    mc+=mcAsp.map(a=>{const tone=a.asp.nat==="dynamic"?`asks for patience and a smarter plan rather than brute effort`:`gives ${a.tp.short} a clear runway`;return `${a.tp.g} ${a.tp.n} ${a.asp.verb} your ${a.np.n} — work and ambition ${tone}.`;}).join(" ");
+  } else { mc+=`No major career aspect is firing, so today favours maintenance over big swings: clear your backlog, tidy your systems, and set up tomorrow's wins.`; }
+  if(goals.includes("money")) mc+=` For money specifically: ${flowing.length?"a supportive sky makes this a fair day to ask, negotiate, or commit a smart financial move":"hold steady on spending and let opportunities ripen rather than chasing them"}.`;
+  if(goals.includes("career")) mc+=` Career-wise, ${dayEl==="Air"||dayEl==="Fire"?"visibility and outreach are favoured — be seen, send the message, make the ask":"focus and deep work serve you better than networking right now"}.`;
+  mc+=`</p>`;
+  sec.push({no:"06",h:"Money & Career Energy",tab:"life",goals:"money career",html:mc});
+
+  /* 7 — love & social */
+  const loveNames=["Venus","Moon","Mars"];
+  const lvAsp=asps.filter(a=>involves(a,loveNames)).slice(0,2);
+  let lv=`<p>`;
+  const venus=transit.planets[3];
+  lv+=`Venus moves through ${SIGNS[venus.sign].n}, coloring how warmth and attraction land today (${SIGNS[venus.sign].key}). `;
+  if(lvAsp.length){ lv+=lvAsp.map(a=>`${a.tp.g} ${a.tp.n} ${a.asp.verb} your ${a.np.n}, so ${a.asp.nat==="dynamic"?"relating may need a little extra care — listen first, react second":"connection flows more openly than usual — reach out"}.`).join(" "); }
+  else { lv+=`Relationships feel low-drama and easygoing — a good window for honest, unhurried conversation.`; }
+  if(goals.includes("love")) lv+=` In love: ${SIGNS[moon.sign].el==="Water"||SIGNS[venus.sign].el==="Water"?"lead with tenderness and let yourself be seen":"keep it light and genuine; let attraction build naturally"}.`;
+  lv+=`</p>`;
+  sec.push({no:"07",h:"Love & Social Energy",tab:"life",goals:"love",html:lv});
+
+  /* 8 — emotional & spiritual */
+  const spNames=["Moon","Neptune","Pluto"];
+  const spAsp=asps.filter(a=>involves(a,spNames)).slice(0,1);
+  let sp=`<p>Inwardly, the ${moonSign.n} Moon asks you to honor ${moonSign.key}. ${moonSign.el==="Water"?"Feelings run deep today — let them move through you instead of bottling them.":moonSign.el==="Fire"?"Emotion wants expression and movement — burn it as fuel, not friction.":moonSign.el==="Earth"?"Grounding through your body and routine settles the mind.":"The head may be busy — name feelings in words to keep them clear."}`;
+  if(spAsp[0]) sp+=` With ${spAsp[0].tp.n} ${spAsp[0].asp.verb} your ${spAsp[0].np.n}, your intuition is heightened — pay attention to dreams, gut nudges, and what repeats.`;
+  sp+=` Stay balanced by ${phase.n.includes("Waning")||phase.n==="Full Moon"?"releasing and resting more than you push":"taking gentle, intentional steps forward"}.</p>`;
+  sec.push({no:"08",h:"Emotional & Spiritual Energy",tab:"life",goals:"healing spiritual growth",html:sp});
+
+  /* 9 — power window */
+  const best=flowing[0]||fusing[0]||strongest;
+  let act;
+  const primaryGoal=goals[0];
+  if(best&&best.asp.nat!=="dynamic"){
+    const map={love:"a heartfelt conversation or putting yourself out there",money:"asking, negotiating, or making a considered money move",career:"sending the application, pitch, or bold message",creativity:"making and shipping creative work",healing:"rest, reflection, and gentle repair",confidence:"taking one brave, visible action","spiritual growth":"meditation, journaling, or intuitive practice"};
+    act=map[primaryGoal]||"taking focused action on what matters most";
+  } else if(retros.length){ act="reviewing, editing, planning, and re-aligning — not launching"; }
+  else { act=dayEl==="Fire"?"bold action and fresh starts":dayEl==="Earth"?"practical, hands-on progress":dayEl==="Air"?"communication, ideas, and connection":"rest, intuition, and emotional care"; }
+  const win=`<div class="window"><span class="clock">${best?"✦":"☽"}</span><div><p style="margin:0">When your energy peaks today, spend it on <strong>${act}</strong>.</p><p style="margin:6px 0 0;color:#a9a18d;font-size:14px">The ${dayEl} Moon favours ${dayEl==="Fire"?"morning momentum":dayEl==="Earth"?"steady daytime focus":dayEl==="Air"?"midday connection and exchange":"evening reflection"} — ride that rhythm rather than fighting it.</p></div></div>`;
+  sec.push({no:"09",h:"Power Window",tab:"today",html:win});
+
+  /* 10 — affirmation */
+  const affBank={Fire:"I move with courage, and my energy lights the way.",Earth:"I build steadily, and what I tend to grows.",Air:"I speak my truth clearly, and the right doors open.",Water:"I trust my feelings, and my intuition guides me well."};
+  sec.push({no:"10",h:"Affirmation",tab:"today",cls:"affirm",html:`<p class="q">“${affBank[dayEl]}”</p>`});
+
+  /* 11 — final */
+  const fin=`<p>You're not at the mercy of the sky — you're working <em>with</em> it. Today's energy is a current, and now you know which way it flows. ${dynamic.length?"Where there's friction, you have awareness, and awareness is protection.":"With a clear sky overhead, your steady effort goes further than you think."} Move with intention, protect your peace, and trust that you're more prepared than you feel. The day is yours to use well.</p>`;
+  sec.push({no:"11",h:"Final Guidance",tab:"today",html:fin});
+
+  sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0")); // auto-number so inserted sections stay sequential
+
+  // ── hero summary (shown above the tabs) ──
+  const heroLine = !strongest ? "A softer, steadier day — quiet consistency wins."
+    : strongest.asp.nat==="dynamic" ? "A day to grow with intention."
+    : strongest.asp.nat==="fusing"  ? "A day where focus is magnified."
+    :                                  "A day that works in your favor.";
+  const powerTime = dayEl==="Fire"?"morning":dayEl==="Earth"?"daytime":dayEl==="Air"?"midday":"evening";
+  const sunHouse = houseOf(sun.sign,natal.ascSign);
+  const hero={
+    moonG:moon.g, moonSign:moonSign.n, phase:phase.n, line:heroLine, powerTime,
+    top: strongest?`${strongest.tp.g} ${strongest.asp.sym} ${strongest.np.g}`:null,
+    sunHouse: sunHouse?`☉ Sun in your ${ord(sunHouse)}`:null,
+  };
+  return {sec,moon,sun,transit,phase,moonSign,approx,hero,timeline,goals};
+}
+
+/* ───────────────────────── UI ───────────────────────── */
+const $=s=>document.querySelector(s);
+const el=(t,c)=>{const e=document.createElement(t); if(c)e.className=c; return e;};
+
+// ── time-zone helpers (wall-clock → UTC, DST-aware for the birth date) ──
+function tzOffsetMs(tz,utcMs){
+  const p=new Intl.DateTimeFormat("en-US",{timeZone:tz,hour12:false,year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}).formatToParts(new Date(utcMs));
+  const m={}; for(const x of p)m[x.type]=x.value;
+  let hr=+m.hour; if(hr===24)hr=0;
+  return Date.UTC(+m.year,+m.month-1,+m.day,hr,+m.minute,+m.second)-utcMs; // local − UTC
+}
+function wallToUtc(Y,M,D,h,mi,tz){
+  const guess=Date.UTC(Y,M-1,D,h,mi);
+  let off=tzOffsetMs(tz,guess), utc=guess-off;
+  const off2=tzOffsetMs(tz,utc); if(off2!==off)utc=guess-off2;   // refine across DST edges
+  return new Date(utc);
+}
+function offsetLabel(tz){
+  const o=tzOffsetMs(tz,Date.now())/3600000, s=o<0?"−":"+", a=Math.abs(o);
+  const hh=String(Math.floor(a)).padStart(2,"0"), mm=String(Math.round((a%1)*60)).padStart(2,"0");
+  return `UTC${s}${hh}:${mm}`;
+}
+// populate dropdown with named IANA zones, current-offset prefix, default = device zone
+const tzSel=$("#tz");
+const localTz=Intl.DateTimeFormat().resolvedOptions().timeZone||"UTC";
+let zones=(typeof Intl.supportedValuesOf==="function")?Intl.supportedValuesOf("timeZone"):
+  ["UTC","America/Los_Angeles","America/Denver","America/Chicago","America/New_York","America/Sao_Paulo","Europe/London","Europe/Paris","Europe/Athens","Africa/Lagos","Asia/Dubai","Asia/Kolkata","Asia/Shanghai","Asia/Tokyo","Australia/Sydney"];
+if(!zones.includes(localTz))zones=[localTz,...zones];
+zones.map(z=>({z,off:tzOffsetMs(z,Date.now())}))
+  .sort((a,b)=>a.off-b.off||a.z.localeCompare(b.z))
+  .forEach(({z})=>{const o=el("option");o.value=z;o.textContent=`(${offsetLabel(z)})  ${z.replace(/_/g," ")}`;tzSel.appendChild(o);});
+if([...tzSel.options].some(o=>o.value===localTz))tzSel.value=localTz; // default to device zone
+// goals chips
+const goalBox=$("#goals");
+GOALS.forEach(g=>{const c=el("button","chip");c.type="button";c.textContent=g;c.setAttribute("aria-pressed","false");c.onclick=()=>c.setAttribute("aria-pressed",c.getAttribute("aria-pressed")==="true"?"false":"true");goalBox.appendChild(c);});
+
+// restore saved profile
+const saved=JSON.parse(localStorage.getItem("astrobot")||"null");
+if(saved){
+  $("#bdate").value=saved.bdate||""; $("#btime").value=saved.btime||"";
+  $("#city").value=saved.city||""; $("#lat").value=saved.lat??""; $("#lon").value=saved.lon??"";
+  if(saved.tz!=null)tzSel.value=saved.tz;
+  (saved.goals||[]).forEach(g=>{const c=[...goalBox.children].find(c=>c.textContent===g); if(c)c.setAttribute("aria-pressed","true");});
+}
+
+// city geocode (free, keyless — Open-Meteo)
+$("#findcity").onclick=async()=>{
+  const q=$("#city").value.trim(); if(!q)return;
+  $("#cityhint").textContent="Searching…";
+  try{
+    const r=await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1`);
+    const j=await r.json();
+    if(j.results&&j.results[0]){
+      const c=j.results[0];
+      $("#lat").value=c.latitude.toFixed(4); $("#lon").value=c.longitude.toFixed(4);
+      $("#city").value=[c.name,c.admin1,c.country].filter(Boolean).join(", ");
+      let tzSet=false;
+      if(c.timezone && [...tzSel.options].some(o=>o.value===c.timezone)){ tzSel.value=c.timezone; tzSet=true; }
+      $("#cityhint").textContent=`Found: ${c.name}${tzSet?` · time zone set to ${c.timezone}`:". Pick the time zone below."}`;
+    } else $("#cityhint").textContent="No match — enter latitude & longitude manually.";
+  }catch(e){ $("#cityhint").textContent="Lookup failed (offline?) — enter lat & long manually."; }
+};
+
+$("#go").onclick=run;
+async function run(){
+  const err=$("#err"); err.textContent="";
+  const bdate=$("#bdate").value;
+  if(!bdate){ err.textContent="Please enter your date of birth."; return; }
+  const btime=$("#btime").value;
+  const approx=!btime;
+  const [Y,M,D]=bdate.split("-").map(Number);
+  const [h,mi]=(btime||"12:00").split(":").map(Number);
+  const tz=tzSel.value;
+  const lat=$("#lat").value!==""?Number($("#lat").value):null;
+  const lon=$("#lon").value!==""?Number($("#lon").value):null;
+  const goals=[...goalBox.children].filter(c=>c.getAttribute("aria-pressed")==="true").map(c=>c.textContent);
+
+  localStorage.setItem("astrobot",JSON.stringify({bdate,btime,city:$("#city").value,lat,lon,tz,goals}));
+
+  // birth instant in UTC (DST-aware for the birth date); M is 1-based from the date input
+  const birthUTC=wallToUtc(Y,M,D,h,mi,tz);
+  const now=new Date();
+
+  $("#go").disabled=true; $("#loading").classList.add("on");
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const natal=chartFor(birthUTC,lat,lon,!approx);
+    const transit=chartFor(now,lat,lon,false);
+    const asps=aspectsBetween(transit,natal);
+    const data=buildReading(natal,transit,asps,goals.length?goals:["confidence"],approx);
+    render(data);
+  }catch(e){
+    console.error(e); err.textContent="Something went wrong computing the sky: "+e.message;
+  }finally{
+    $("#go").disabled=false; $("#loading").classList.remove("on");
+  }
+}
+
+const TAB_DEFS=[["today","Today"],["transits","Transits"],["houses","Houses"],["life","Life"]];
+
+// visual timeline of the top transits: building → exact → easing, length encodes duration
+function buildTimeline(timeline){
+  const wrap=el("div","timeline");
+  wrap.innerHTML=`<div class="tl-head">Transit timeline<span>building → exact → easing</span></div>`;
+  const track=el("div","tl-track");
+  track.innerHTML=`<div class="tl-now"></div>`;
+  timeline.forEach(({a,ti})=>{
+    const r=Math.min(1,a.orb/a.asp.orb);                                   // 0 = exact, 1 = edge of orb
+    const x = ti.phase==="exact" ? 50 : ti.phase==="applying" ? 50 - r*44 : 50 + r*44;
+    const halfW = Math.max(2,Math.min(24, 2 + 7*Math.log10(ti.days+1)));   // wider bar = longer transit
+    const it=el("div","tl-item nat-"+a.asp.nat);
+    it.style.left=x+"%";
+    it.title=`${a.tp.n} ${a.asp.n} natal ${a.np.n} — ${ti.window}, ${ti.phaseLabel}`;
+    it.innerHTML=`<div class="tl-bar" style="width:${2*halfW}%;margin-left:${-halfW}%"></div><div class="tl-dot"></div><div class="tl-lab">${a.tp.g}${a.asp.sym}${a.np.g}</div>`;
+    track.appendChild(it);
+  });
+  wrap.appendChild(track);
+  const leg=el("div","tl-legend");
+  leg.innerHTML=`<span class="nat-flowing">flowing</span><span class="nat-fusing">merging</span><span class="nat-dynamic">dynamic</span>`;
+  wrap.appendChild(leg);
+  return wrap;
+}
+
+function render(data){
+  const r=$("#reading"); r.innerHTML=""; r.style.display="block";
+  const now=data.transit.date;
+  const dl=el("div","dateline");
+  dl.innerHTML=`<div class="l">Today's Sky</div><div class="d">${now.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"})}</div>`;
+  r.appendChild(dl);
+
+  // live sky strip
+  const sky=el("div","sky");
+  ["Sun","Moon","Mercury","Venus","Mars"].forEach(nm=>{
+    const p=data.transit.planets.find(x=>x.n===nm);
+    const b=el("div","b");
+    b.innerHTML=`<div class="glyph">${p.g}</div><div class="nm">${p.n}</div><div class="pos">${fmtPos(p.lon)}</div>${p.retro?'<div class="rx">℞ retro</div>':""}`;
+    sky.appendChild(b);
+  });
+  r.appendChild(sky);
+
+  if(data.approx){
+    const w=el("div","approx-note");
+    w.innerHTML=`<em>Birth time was left blank, so houses and Moon sign are approximate (noon-based). Add a birth time for a sharper reading.</em>`;
+    r.appendChild(w);
+  }
+
+  // ── HERO ──
+  const h=data.hero, hero=el("div","hero");
+  const chips=[`<button class="hchip" data-jump="today">⚡ Best: ${h.powerTime}</button>`];
+  if(h.top)      chips.push(`<button class="hchip" data-jump="transits">✦ ${h.top}</button>`);
+  if(h.sunHouse) chips.push(`<button class="hchip" data-jump="houses">${h.sunHouse}</button>`);
+  hero.innerHTML=`<div class="hero-moon">${h.moonG} ${h.phase} · Moon in ${h.moonSign}</div><div class="hero-line">${h.line}</div><div class="hero-chips">${chips.join("")}</div>`;
+  r.appendChild(hero);
+
+  // ── GOAL FILTER BAR ──
+  let activeGoal=null;
+  const fbar=el("div","filterbar");
+  fbar.innerHTML=`<span class="fl-label">Focus</span>`;
+  (data.goals||[]).forEach(g=>{
+    const c=el("button","fchip"); c.textContent=g; c.dataset.goal=g;
+    c.onclick=()=>{ activeGoal=activeGoal===g?null:g; updateFilter(); };
+    fbar.appendChild(c);
+  });
+  r.appendChild(fbar);
+  function updateFilter(){
+    fbar.querySelectorAll(".fchip").forEach(c=>c.classList.toggle("on",c.dataset.goal===activeGoal));
+    r.querySelectorAll("[data-goals]").forEach(elm=>{
+      const gs=elm.getAttribute("data-goals").split(" ").filter(Boolean);
+      elm.classList.toggle("dim", !!activeGoal && !gs.includes(activeGoal));
+    });
+  }
+
+  // ── TABS + PANELS ──
+  const present=TAB_DEFS.filter(([id])=>data.sec.some(s=>s.tab===id));
+  const tabbar=el("div","tabbar"), panelWrap=el("div","panels");
+  present.forEach(([id,label])=>{
+    const btn=el("button","tab"); btn.textContent=label; btn.dataset.tab=id; tabbar.appendChild(btn);
+    const panel=el("div","panel"); panel.dataset.tab=id;
+    if(id==="transits" && data.timeline && data.timeline.length) panel.appendChild(buildTimeline(data.timeline));
+    data.sec.filter(s=>s.tab===id).forEach((s,i)=>{
+      const sx=el("section","read"+(s.cls?" "+s.cls:""));
+      sx.style.animationDelay=(0.05*i)+"s";
+      if(s.goals) sx.setAttribute("data-goals",s.goals);
+      sx.innerHTML=`<div class="no">${s.no}</div><h2>${s.h}</h2>${s.html}`;
+      panel.appendChild(sx);
+    });
+    panelWrap.appendChild(panel);
+  });
+  r.appendChild(tabbar); r.appendChild(panelWrap);
+
+  function activate(id){
+    tabbar.querySelectorAll(".tab").forEach(b=>b.classList.toggle("on",b.dataset.tab===id));
+    panelWrap.querySelectorAll(".panel").forEach(p=>{
+      const on=p.dataset.tab===id; p.classList.toggle("active",on);
+      if(on){ p.style.animation="none"; void p.offsetWidth; p.style.animation=""; }   // retrigger entrance
+    });
+  }
+  tabbar.querySelectorAll(".tab").forEach(b=>b.onclick=()=>activate(b.dataset.tab));
+  hero.querySelectorAll(".hchip").forEach(b=>b.onclick=()=>{ activate(b.dataset.jump); tabbar.scrollIntoView({behavior:"smooth",block:"start"}); });
+  activate(present[0][0]);
+
+  const fb=el("div","footer-btns");
+  const again=el("button","ghost");again.textContent="↻ Re-read";again.onclick=run;
+  const edit=el("button","ghost");edit.textContent="✎ Edit details";edit.onclick=()=>{r.style.display="none";window.scrollTo({top:0,behavior:"smooth"});};
+  fb.append(again,edit); r.appendChild(fb);
+
+  $("#disc").textContent="Astrobot is for reflection, encouragement and self-coaching — not medical, legal or financial advice. Astrology describes energy and possibility, never certainty. You always hold the pen.";
+  r.scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("#disc").textContent="";
+</script>
+</body>
+</html>
