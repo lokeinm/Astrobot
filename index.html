@@ -207,6 +207,33 @@
   [data-goals]{transition:opacity .3s,filter .3s}
   [data-goals].dim{opacity:.32; filter:saturate(.4)}
 
+  /* ── CHART WHEEL ── */
+  .wheelwrap{margin:6px auto 8px; max-width:340px}
+  .wheel{width:100%; height:auto; display:block}
+  .wk-ring{fill:none; stroke:var(--line); stroke-width:1}
+  .wk-div{stroke:var(--line); stroke-width:.6}
+  .wk-sign{fill:var(--gold); font-size:15px; text-anchor:middle; font-family:var(--sym),serif}
+  .wk-house{fill:var(--cream-dim); font-size:11px; text-anchor:middle; font-family:var(--mono); cursor:pointer}
+  .wk-house.sel{fill:var(--ink); font-weight:700}
+  .wk-asc{fill:var(--gold-bright); font-size:9px; letter-spacing:.1em; text-anchor:middle; font-family:var(--mono)}
+  .wk-planet{cursor:pointer}
+  .wk-planet text{text-anchor:middle; font-size:15px; font-family:var(--sym),serif; pointer-events:none}
+  .wk-np text{fill:var(--gold-bright)}
+  .wk-tp text{fill:#cfe0ff}
+  .wk-hit{fill:transparent; stroke:transparent; stroke-width:2}
+  .wk-planet.sel .wk-hit{fill:rgba(201,164,92,.22); stroke:var(--gold)}
+  .wk-house.sel{fill:var(--gold)}
+  .wk-legend{display:flex; gap:16px; justify-content:center; margin-bottom:12px;
+    font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase}
+  .wk-legend .wk-np{color:var(--gold-bright)} .wk-legend .wk-tp{color:#cfe0ff}
+  .wheel-detail{border:1px solid var(--line); border-radius:12px; padding:14px 16px; background:var(--panel); min-height:60px; font-size:15px; color:#ccc4b2}
+  .wheel-detail em{color:var(--cream-dim)}
+  .wd-h{font-family:var(--mono); font-size:12.5px; letter-spacing:.04em; color:var(--gold-bright); margin-bottom:6px}
+  .wheel-detail p{margin:0 0 6px} .wheel-detail ul{margin:4px 0 0; padding:0; list-style:none}
+  .wheel-detail li{padding:3px 0 3px 16px; position:relative; font-size:14.5px}
+  .wheel-detail li::before{content:"·"; position:absolute; left:4px; color:var(--gold)}
+  .wd-sub{color:#9aa6b4; font-size:13.5px}
+
   /* ── MODE TOGGLE (Today / Week / Month) ── */
   .modebar{display:flex; gap:6px; padding:5px; margin:16px 0 0; background:var(--ink-2);
     border:1px solid var(--line); border-radius:999px}
@@ -565,6 +592,70 @@ function exSpan(a,ascSign){const t=realLife(a.tp.n,a.np.n,a.asp.nat); if(!t)retu
 function topByNature(asps,nature,n=3){return asps.filter(a=>a.asp.nat===nature).slice(0,n);}
 function involves(a,names){return names.includes(a.tp.n)||names.includes(a.np.n);}
 
+/* ───────────────────────── Chart wheel (bi-wheel: natal + transits) ───────────────────────── */
+// longitude → SVG point. Ascendant sign-start sits at left (9 o'clock); zodiac runs coun-clockwise.
+function wheelPos(L,ref,r,cx,cy){ const b=(180-(L-ref))*D2R; return [cx+r*Math.cos(b), cy+r*Math.sin(b)]; }
+const ASP_COLOR={flowing:"#8a9b78",dynamic:"#bb6a4c",fusing:"#6f8fc9"};
+
+function buildWheel(natal,transit,asps){
+  const cx=170,cy=170, Rout=166,Rsign=140,Rhouse=104, Rtp=122,Rnp=78,Rasp=60;
+  const hasH=natal.ascSign!=null, ref=hasH?natal.ascSign*30:0;
+  // declump planets sharing a longitude by nudging inward in tiers
+  const place=(planets,baseR)=>{ const s=[...planets].sort((a,b)=>a.lon-b.lon); let last=-99,tier=0;
+    return s.map(p=>{ tier=(p.lon-last<8)?tier+1:0; last=p.lon; const r=baseR-tier*13; const [x,y]=wheelPos(p.lon,ref,r,cx,cy); return {p,x,y}; }); };
+
+  let g=`<svg viewBox="0 0 340 340" class="wheel" role="img" aria-label="Your bi-wheel chart">`;
+  g+=`<circle cx="${cx}" cy="${cy}" r="${Rout}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rsign}" class="wk-ring"/><circle cx="${cx}" cy="${cy}" r="${Rhouse}" class="wk-ring"/>`;
+  // sign sectors + house numbers
+  for(let i=0;i<12;i++){
+    const [x1,y1]=wheelPos(i*30,ref,Rhouse,cx,cy), [x2,y2]=wheelPos(i*30,ref,Rout,cx,cy);
+    g+=`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="wk-div"/>`;
+    const [sx,sy]=wheelPos(i*30+15,ref,(Rsign+Rout)/2,cx,cy);
+    g+=`<text x="${sx}" y="${sy}" class="wk-sign" dy="0.35em">${SIGNS[i].g}</text>`;
+    if(hasH){ const hn=mod(i-natal.ascSign,12)+1, [hx,hy]=wheelPos(i*30+15,ref,Rhouse-11,cx,cy);
+      g+=`<text x="${hx}" y="${hy}" class="wk-house" data-detail="h-${hn}" dy="0.35em">${hn}</text>`; }
+  }
+  // aspect lines (transit ↔ natal), strongest first, opacity by tightness
+  for(const a of asps.slice(0,8)){
+    const [nx,ny]=wheelPos(a.np.lon,ref,Rasp,cx,cy), [tx,ty]=wheelPos(a.tp.lon,ref,Rasp,cx,cy);
+    g+=`<line x1="${nx}" y1="${ny}" x2="${tx}" y2="${ty}" stroke="${ASP_COLOR[a.asp.nat]}" stroke-width="1.2" opacity="${(0.3+0.5*(1-a.orb/a.asp.orb)).toFixed(2)}"/>`;
+  }
+  if(hasH){ const [ax,ay]=wheelPos(0,ref,Rhouse-9,cx,cy); g+=`<text x="${ax}" y="${ay}" class="wk-asc" dy="0.35em">ASC</text>`; }
+  // planet glyphs — natal (inner) and transiting (outer), each tappable
+  for(const {p,x,y} of place(natal.planets,Rnp))
+    g+=`<g data-detail="np-${p.n}" class="wk-planet wk-np"><circle cx="${x}" cy="${y}" r="11" class="wk-hit"/><text x="${x}" y="${y}" dy="0.34em">${p.g}</text></g>`;
+  for(const {p,x,y} of place(transit.planets,Rtp))
+    g+=`<g data-detail="tp-${p.n}" class="wk-planet wk-tp"><circle cx="${x}" cy="${y}" r="11" class="wk-hit"/><text x="${x}" y="${y}" dy="0.34em">${p.g}</text></g>`;
+  g+=`</svg>`;
+
+  // tap-to-reveal detail for every planet and house
+  const details={};
+  for(const p of natal.planets){
+    const h=houseOf(p.sign,natal.ascSign), hits=asps.filter(a=>a.np.n===p.n).slice(0,3);
+    details[`np-${p.n}`]=`<div class="wd-h">${p.g} Natal ${p.n} in ${SIGNS[p.sign].n}${h?` · your ${houseTag(h)}`:""}</div>`+
+      `<p>${cap(p.theme)}.</p>`+(hits.length
+        ?`<p class="wd-sub">Activated today by:</p><ul>${hits.map(a=>`<li>${a.tp.g} ${a.tp.n} ${a.asp.sym} — ${a.asp.nat==="dynamic"?"a growth point":"a supportive opening"} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></li>`).join("")}</ul>`
+        :`<p class="wd-sub">No close transit to this point today.</p>`);
+  }
+  for(const p of transit.planets){
+    const h=houseOf(p.sign,natal.ascSign), hits=asps.filter(a=>a.tp.n===p.n).slice(0,3);
+    details[`tp-${p.n}`]=`<div class="wd-h">${p.g} ${p.n} transiting ${SIGNS[p.sign].n}${p.retro?" ℞":""}${h?` · your ${houseTag(h)}`:""}</div>`+
+      `<p>${cap(PLANET_FOCUS[p.n]||"moves through")} ${h?`your ${ord(h)} house`:SIGNS[p.sign].n}.</p>`+
+      (hits.length?`<p class="wd-sub">Aspecting your natal:</p><ul>${hits.map(a=>`<li>${a.asp.sym} ${a.np.g} ${a.np.n} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></li>`).join("")}</ul>`:"");
+  }
+  if(hasH) for(let hn=1;hn<=12;hn++){
+    const si=mod(natal.ascSign+hn-1,12), nIn=natal.planets.filter(p=>p.sign===si), tIn=transit.planets.filter(p=>p.sign===si);
+    details[`h-${hn}`]=`<div class="wd-h">Your ${ord(hn)} house in ${SIGNS[si].n} · ${HOUSE_INFO[hn].tag}</div>`+
+      `<p>${cap(HOUSE_INFO[hn].ex)}.</p>`+
+      `<p class="wd-sub">Natal here: ${nIn.length?nIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`+
+      `<p class="wd-sub">Transiting now: ${tIn.length?tIn.map(p=>p.g+" "+p.n).join(", "):"—"}</p>`;
+  }
+  const note=hasH?"":`<p class="wd-sub" style="margin-top:8px">Add a birth time to see houses and the Ascendant on your wheel.</p>`;
+  const sectionHtml=`<div class="wheelwrap">${g}</div><div class="wk-legend"><span class="wk-np">● natal</span><span class="wk-tp">● transiting now</span></div>`+
+    `<div class="wheel-detail" id="wheelDetail"><em>Tap any planet${hasH?" or house number":""} on the wheel to read it.</em>${note}</div>`;
+  return {sectionHtml,details};
+}
+
 function buildReading(natal,transit,asps,goals,approx){
   const moon=transit.planets[1], sun=transit.planets[0];
   const moonSign=SIGNS[moon.sign];
@@ -690,6 +781,10 @@ function buildReading(natal,transit,asps,goals,approx){
   const fin=`<p>You're not at the mercy of the sky — you're working <em>with</em> it. Today's energy is a current, and now you know which way it flows. ${dynamic.length?"Where there's friction, you have awareness, and awareness is protection.":"With a clear sky overhead, your steady effort goes further than you think."} Move with intention, protect your peace, and trust that you're more prepared than you feel. The day is yours to use well.</p>`;
   sec.push({no:"11",h:"Final Guidance",tab:"today",html:fin});
 
+  /* chart wheel (bi-wheel: natal + transits) */
+  const wheel=buildWheel(natal,transit,asps);
+  sec.push({no:"12",h:"Your Chart Wheel",tab:"chart",html:wheel.sectionHtml});
+
   sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0")); // auto-number so inserted sections stay sequential
 
   // ── hero summary (shown above the tabs) ──
@@ -708,7 +803,7 @@ function buildReading(natal,transit,asps,goals,approx){
       ...(sunHouse?[{t:`☉ Sun in your ${ord(sunHouse)}`, jump:"houses"}]:[]),
     ],
   };
-  return {sec,moon,sun,transit,phase,moonSign,approx,hero,timeline,goals};
+  return {sec,moon,sun,transit,phase,moonSign,approx,hero,timeline,goals,wheel:{details:wheel.details}};
 }
 
 /* ───────────────────────── Forecast (week / month) ───────────────────────── */
@@ -961,7 +1056,7 @@ async function run(){
   }
 }
 
-const TAB_DEFS=[["today","Today"],["transits","Transits"],["houses","Houses"],["life","Life"]];
+const TAB_DEFS=[["today","Today"],["transits","Transits"],["chart","Chart"],["houses","Houses"],["life","Life"]];
 
 // visual timeline of the top transits: building → exact → easing, length encodes duration
 function buildTimeline(timeline){
@@ -1069,6 +1164,18 @@ function render(data){
   tabbar.querySelectorAll(".tab").forEach(b=>b.onclick=()=>activate(b.dataset.tab));
   hero.querySelectorAll(".hchip").forEach(b=>b.onclick=()=>{ activate(b.dataset.jump); tabbar.scrollIntoView({behavior:"smooth",block:"start"}); });
   activate(present[0][0]);
+
+  // chart-wheel tap-to-reveal
+  if(data.wheel){
+    const wd=r.querySelector("#wheelDetail");
+    r.querySelectorAll(".wheel [data-detail]").forEach(g=>{
+      g.addEventListener("click",()=>{
+        r.querySelectorAll(".wheel .sel").forEach(e=>e.classList.remove("sel"));
+        g.classList.add("sel");
+        if(wd && data.wheel.details[g.dataset.detail]) wd.innerHTML=data.wheel.details[g.dataset.detail];
+      });
+    });
+  }
 
   const fb=el("div","footer-btns");
   const again=el("button","ghost");again.textContent="↻ Re-read";again.onclick=run;
