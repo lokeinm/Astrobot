@@ -207,6 +207,27 @@
   [data-goals]{transition:opacity .3s,filter .3s}
   [data-goals].dim{opacity:.32; filter:saturate(.4)}
 
+  /* ── MODE TOGGLE (Today / Week / Month) ── */
+  .modebar{display:flex; gap:6px; padding:5px; margin:16px 0 0; background:var(--ink-2);
+    border:1px solid var(--line); border-radius:999px}
+  .modebtn{flex:1; font-family:var(--mono); font-size:12px; letter-spacing:.08em; color:var(--cream-dim);
+    background:transparent; border:none; border-radius:999px; padding:9px 6px; cursor:pointer; transition:all .2s}
+  .modebtn:hover{color:var(--cream)}
+  .modebtn.on{color:var(--ink); background:var(--gold); font-weight:600}
+
+  /* ── FORECAST date strip ── */
+  .fc-strip{margin:4px 0 16px}
+  .fc-axis{display:flex; justify-content:space-between; font-family:var(--mono); font-size:10px;
+    letter-spacing:.08em; color:var(--cream-dim); margin-bottom:7px}
+  .fc-track{position:relative; height:16px; border-radius:8px;
+    background:linear-gradient(90deg,rgba(201,164,92,.04),rgba(201,164,92,.14))}
+  .fc-track::before{content:""; position:absolute; left:0; right:0; top:50%; height:1px; background:var(--line)}
+  .fc-dot{position:absolute; top:50%; width:9px; height:9px; margin:-4.5px 0 0 -4.5px; border-radius:50%;
+    background:var(--gold); box-shadow:0 0 0 2px var(--panel)}
+  .fc-dot.nat-flowing{background:var(--sage)} .fc-dot.nat-dynamic{background:var(--terra)} .fc-dot.nat-fusing{background:#6f8fc9}
+  .fc-dot.fc-phase{background:var(--gold-bright)} .fc-dot.fc-ingress{background:var(--sage)} .fc-dot.fc-station{background:var(--terra)}
+  .fc-date{display:inline-block; min-width:46px; color:var(--gold); font-family:var(--mono); font-size:11px}
+
   /* ── TRANSIT TIMELINE ── */
   .timeline{border:1px solid var(--line); border-radius:14px; padding:16px 16px 12px; margin:8px 0 14px; background:var(--panel)}
   .tl-head{font-family:var(--mono); font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--gold);
@@ -467,6 +488,15 @@ const PLANET_GOALS={
 };
 // tag by the NATAL planet — the part of your chart the transit activates (more discriminating filter)
 const goalsFor=a=>(PLANET_GOALS[a.np.n]||[]).join(" ");
+const GOAL_FOCUS={
+  love:"Relationships, attraction and connection are highlighted — reach out and tend what matters.",
+  money:"Money, resources and self-worth see movement — review, earn, and value yourself.",
+  career:"Career, ambition and visibility are in focus — make moves and let yourself be seen.",
+  creativity:"Creative expression and play open up — make something and put it out there.",
+  healing:"Emotional repair and self-care are favored — rest, process, and restore.",
+  confidence:"Identity and self-assurance are spotlighted — step forward boldly.",
+  "spiritual growth":"Inner growth, intuition and meaning deepen — reflect and go inward.",
+};
 
 function aspectsBetween(transit,natal){
   const out=[];
@@ -670,16 +700,166 @@ function buildReading(natal,transit,asps,goals,approx){
   const powerTime = dayEl==="Fire"?"morning":dayEl==="Earth"?"daytime":dayEl==="Air"?"midday":"evening";
   const sunHouse = houseOf(sun.sign,natal.ascSign);
   const hero={
-    moonG:moon.g, moonSign:moonSign.n, phase:phase.n, line:heroLine, powerTime,
-    top: strongest?`${strongest.tp.g} ${strongest.asp.sym} ${strongest.np.g}`:null,
-    sunHouse: sunHouse?`☉ Sun in your ${ord(sunHouse)}`:null,
+    topline:`${moon.g} ${phase.n} · Moon in ${moonSign.n}`,
+    line:heroLine,
+    chips:[
+      {t:`⚡ Best: ${powerTime}`, jump:"today"},
+      ...(strongest?[{t:`✦ ${strongest.tp.g} ${strongest.asp.sym} ${strongest.np.g}`, jump:"transits"}]:[]),
+      ...(sunHouse?[{t:`☉ Sun in your ${ord(sunHouse)}`, jump:"houses"}]:[]),
+    ],
   };
   return {sec,moon,sun,transit,phase,moonSign,approx,hero,timeline,goals};
+}
+
+/* ───────────────────────── Forecast (week / month) ───────────────────────── */
+const fmtDate=d=>d.toLocaleDateString(undefined,{month:"short",day:"numeric"});
+const QPHASE=[{n:"New Moon",g:"●",i:0},{n:"First Quarter",g:"◑",i:2},{n:"Full Moon",g:"○",i:4},{n:"Last Quarter",g:"◐",i:6}];
+const FC_TRACK=PLANETS.filter(p=>p.n!=="Moon");          // skip the Moon — too fast for a multi-day forecast
+const aspTargets=ang=> (ang===0||ang===180)?[ang]:[ang,-ang];
+const sDelta=(tpLon,npLon,t)=> mod(tpLon-npLon-t+180,360)-180;   // signed distance from exact, in [-180,180]
+
+function buildForecast(natal,transit,start,days,mode,goals,approx){
+  const startMs=start.getTime(), DAY=86400000, endMs=startMs+days*DAY, end=new Date(endMs);
+  const asc=natal.ascSign, label=mode==="week"?"week":"month", labelCap=mode==="week"?"Week":"Month";
+
+  // daily samples of every planet's longitude across the range
+  const samp=[];
+  for(let i=0;i<=days;i++){
+    const d=new Date(startMs+i*DAY), lon={}, sgn={};
+    for(const p of PLANETS){ const l=eclLon(p.body,d); lon[p.n]=l; sgn[p.n]=signOf(l); }
+    samp.push({d,lon,sgn});
+  }
+
+  // 1 ── exact transit→natal aspects (Moon excluded; zero-crossing + bisection to the hour)
+  const aspectEvents=[];
+  for(const tp of FC_TRACK) for(const np of natal.planets){
+    for(const asp of ASPECTS) for(const t of aspTargets(asp.ang)){
+      for(let i=1;i<=days;i++){
+        const g0=sDelta(samp[i-1].lon[tp.n],np.lon,t), g1=sDelta(samp[i].lon[tp.n],np.lon,t);
+        if(Math.abs(g0)>45 && Math.abs(g1)>45) continue;       // ignore far-away samples / ±180 wrap
+        if(g0===0||(g0<0)!==(g1<0)){
+          let lo=startMs+(i-1)*DAY, hi=startMs+i*DAY, glo=g0;
+          for(let k=0;k<7;k++){ const mid=(lo+hi)/2, gm=sDelta(eclLon(tp.body,new Date(mid)),np.lon,t); if((gm<0)===(glo<0)){lo=mid;glo=gm;}else hi=mid; }
+          const when=new Date((lo+hi)/2); if(when<start||when>end) continue;
+          const exLon=eclLon(tp.body,when), a={tp:{...tp,lon:exLon,sign:signOf(exLon)},np,asp,orb:0};
+          const score=(np.lum?3:np.personal?2:0)+(["Jupiter","Saturn","Uranus","Neptune","Pluto"].includes(tp.n)?2:0)+(asp.n==="conjunction"||asp.n==="opposition"?1:0);
+          aspectEvents.push({date:when,type:"aspect",a,score,
+            title:`${tp.g} ${tp.n} ${asp.sym} natal ${np.g} ${np.n} exact`,
+            meaning:cap(blend(a)), ex:exSpan(a,asc), goals:goalsFor(a)});
+        }
+      }
+    }
+  }
+  aspectEvents.sort((x,y)=>y.score-x.score);
+  const aspectsKept=aspectEvents.slice(0, mode==="week"?10:16);
+
+  // 2 ── Moon phases (New / First / Full / Last quarter)
+  const phaseEvents=[];
+  try{
+    let mq=Astronomy.SearchMoonQuarter(start), guard=0;
+    while(mq && guard++<40){
+      const when=mq.time.date; if(when>end) break;
+      if(when>=start){
+        const ph=QPHASE.find(q=>q.i/2===mq.quarter)||QPHASE[0];
+        const s=SIGNS[signOf(eclLon(Astronomy.Body.Moon,when))];
+        phaseEvents.push({date:when,type:"phase",title:`${ph.g} ${ph.n} in ${s.n}`,meaning:`${cap(PHASES[ph.i].adv)} — ${PHASES[ph.i].act}.`});
+      }
+      mq=Astronomy.NextMoonQuarter(mq);
+    }
+  }catch(e){}
+
+  // 3 ── sign ingresses (+ house shifts)
+  const ingressEvents=[], houseShifts=[];
+  for(const p of FC_TRACK) for(let i=1;i<=days;i++){
+    if(samp[i].sgn[p.n]!==samp[i-1].sgn[p.n]){
+      const ns=samp[i].sgn[p.n], when=samp[i].d, s=SIGNS[ns];
+      let hc=""; const h=houseOf(ns,asc);
+      if(h){ hc=` Moves into your ${houseTag(h)}.`; houseShifts.push({date:when,p,h}); }
+      ingressEvents.push({date:when,type:"ingress",title:`${p.g} ${p.n} enters ${s.n}`,meaning:`A ${s.key} flavor colors ${p.short}.${hc}`});
+    }
+  }
+
+  // 4 ── retrograde stations
+  const stationEvents=[];
+  for(const p of FC_TRACK){
+    if(p.lum) continue;
+    for(let i=1;i<days;i++){
+      const v0=samp[i].lon[p.n]-samp[i-1].lon[p.n], v1=samp[i+1].lon[p.n]-samp[i].lon[p.n];
+      const w0=v0>180?v0-360:v0<-180?v0+360:v0, w1=v1>180?v1-360:v1<-180?v1+360:v1;
+      if((w0<0)!==(w1<0)){
+        const dir=w1<0?"retrograde":"direct";
+        stationEvents.push({date:samp[i].d,type:"station",title:`${p.g} ${p.n} stations ${dir==="retrograde"?"℞ retrograde":"direct"}`,
+          meaning:dir==="retrograde"?`A review phase for ${p.short} begins — revisit and refine rather than launch.`:`${cap(p.short)} resumes forward motion — momentum and clarity return.`});
+      }
+    }
+  }
+
+  const events=[...aspectsKept,...phaseEvents,...ingressEvents,...stationEvents].sort((a,b)=>a.date-b.date);
+
+  // ── theme ──
+  const flow=aspectsKept.filter(e=>e.a.asp.nat!=="dynamic").length, dyn=aspectsKept.filter(e=>e.a.asp.nat==="dynamic").length;
+  const fullM=phaseEvents.find(e=>e.title.includes("Full Moon")), newM=phaseEvents.find(e=>e.title.includes("New Moon")), retroStart=stationEvents.find(e=>e.title.includes("retrograde"));
+  let theme=`Over the next ${days} days, your sky carries `;
+  theme += flow>dyn ? `more support than friction — ${flow} flowing opening${flow!==1?"s":""} against ${dyn} growth point${dyn!==1?"s":""}. Lean into the momentum.`
+         : dyn>flow ? `${dyn} growth point${dyn!==1?"s":""} versus ${flow} easy opening${flow!==1?"s":""} — a stretch that rewards patience and adjustment.`
+         : `a balanced mix of openings and growth points. Stay responsive rather than forcing one agenda.`;
+  if(newM)  theme+=` The ${fmtDate(newM.date)} New Moon is your reset — plant intentions then.`;
+  if(fullM) theme+=` Build toward the ${fmtDate(fullM.date)} Full Moon, when things culminate and clarify.`;
+  if(retroStart) theme+=` Note the retrograde from ${fmtDate(retroStart.date)}: a built-in review window.`;
+
+  const sec=[];
+  sec.push({no:"01",h:`The ${labelCap} Ahead`,tab:"today",cls:"theme-card",
+    html:`<p class="lead">${theme}</p><p style="color:#a9a18d;font-size:14px;margin-top:10px">${events.length} key date${events.length!==1?"s":""} · ${aspectsKept.length} exact aspect${aspectsKept.length!==1?"s":""} · ${phaseEvents.length} Moon phase${phaseEvents.length!==1?"s":""}</p>`});
+
+  // ── calendar: date strip + dated list ──
+  const strip=events.map(e=>{
+    const x=Math.max(0,Math.min(100,(e.date-start)/(endMs-startMs)*100));
+    const cls=e.type==="aspect"?("nat-"+e.a.asp.nat):("fc-"+e.type);
+    return `<div class="fc-dot ${cls}" style="left:${x}%" title="${fmtDate(e.date)} — ${e.title.replace(/"/g,"")}"></div>`;
+  }).join("");
+  const cal=events.map(e=>{
+    const dg=e.goals?` data-goals="${e.goals}"`:"";
+    return `<li${dg}><span class="t"><span class="fc-date">${fmtDate(e.date)}</span> ${e.title}</span><span class="m">${e.meaning}</span>${e.ex||""}</li>`;
+  }).join("");
+  sec.push({no:"02",h:"Key Dates",tab:"transits",
+    html:`<div class="fc-strip"><div class="fc-axis"><span>${fmtDate(start)}</span><span>${fmtDate(end)}</span></div><div class="fc-track">${strip}</div></div>`+
+         (events.length?`<ul>${cal}</ul>`:`<p>No major dated events in this window — a quiet, steady stretch.</p>`)});
+
+  // ── house shifts (needs birth time) ──
+  if(asc!=null){
+    let hsHtml;
+    if(houseShifts.length){
+      hsHtml=`<p>Planets crossing into a new house of yours this ${label} — each moves where the action lands:</p><ul>`+
+        houseShifts.sort((a,b)=>a.date-b.date).map(s=>`<li><span class="t"><span class="fc-date">${fmtDate(s.date)}</span> ${s.p.g} ${s.p.n} → your ${houseTag(s.h)}</span><span class="m">Focus for ${s.p.short} moves to ${HOUSE_INFO[s.h].ex}.</span></li>`).join("")+`</ul>`;
+    } else hsHtml=`<p>No planets change houses this ${label} — your active areas stay steady. The daily view's house map shows where everything sits right now.</p>`;
+    sec.push({no:"03",h:"House Shifts Ahead",tab:"houses",html:hsHtml});
+  }
+
+  // ── life focus ──
+  const tally={};
+  aspectsKept.forEach(e=>(e.goals||"").split(" ").filter(Boolean).forEach(g=>tally[g]=(tally[g]||0)+1));
+  const ranked=Object.entries(tally).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  const lifeHtml = ranked.length
+    ? `<p>Where this ${label}'s transits land most:</p><ul>`+ranked.map(([g,n])=>`<li data-goals="${g}"><span class="t">${cap(g)} <span style="color:#7e8a98">(${n} transit${n!==1?"s":""})</span></span><span class="m">${GOAL_FOCUS[g]||"An active theme this "+label+"."}</span></li>`).join("")+`</ul>`
+    : `<p>No single life area dominates this ${label} — a good window for steady progress across the board.</p>`;
+  sec.push({no:"04",h:"Where the Focus Falls",tab:"life",html:lifeHtml});
+
+  sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0"));
+
+  // ── hero ──
+  const nextPhase=phaseEvents[0], topAsp=aspectsKept[0];
+  const chips=[{t:`✦ ${events.length} key dates`, jump:"transits"}];
+  if(topAsp)    chips.push({t:`${topAsp.a.tp.g} ${topAsp.a.asp.sym} ${topAsp.a.np.g} ${fmtDate(topAsp.date)}`, jump:"transits"});
+  if(nextPhase) chips.push({t:`${nextPhase.title.split(" in ")[0]} ${fmtDate(nextPhase.date)}`, jump:"transits"});
+  const hero={ topline:`🗓 Next ${days} days · ${fmtDate(start)} – ${fmtDate(end)}`, line:theme.split(".")[0]+".", chips };
+
+  return {sec,transit,approx,hero,goals,timeline:[],tabs:{today:"Overview",transits:"Calendar",houses:"Houses",life:"Life"}};
 }
 
 /* ───────────────────────── UI ───────────────────────── */
 const $=s=>document.querySelector(s);
 const el=(t,c)=>{const e=document.createElement(t); if(c)e.className=c; return e;};
+let viewMode=localStorage.getItem("astrobot_mode")||"today";   // today | week | month
 
 // ── time-zone helpers (wall-clock → UTC, DST-aware for the birth date) ──
 function tzOffsetMs(tz,utcMs){
@@ -765,8 +945,14 @@ async function run(){
   try{
     const natal=chartFor(birthUTC,lat,lon,!approx);
     const transit=chartFor(now,lat,lon,false);
-    const asps=aspectsBetween(transit,natal);
-    const data=buildReading(natal,transit,asps,goals.length?goals:["confidence"],approx);
+    const useGoals=goals.length?goals:["confidence"];
+    let data;
+    if(viewMode==="today"){
+      const asps=aspectsBetween(transit,natal);
+      data=buildReading(natal,transit,asps,useGoals,approx);
+    } else {
+      data=buildForecast(natal,transit,now,viewMode==="week"?7:30,viewMode,useGoals,approx);
+    }
     render(data);
   }catch(e){
     console.error(e); err.textContent="Something went wrong computing the sky: "+e.message;
@@ -823,12 +1009,18 @@ function render(data){
     r.appendChild(w);
   }
 
+  // ── MODE TOGGLE (Today / Week / Month) ──
+  const modebar=el("div","modebar");
+  [["today","Today"],["week","Week"],["month","Month"]].forEach(([m,lab])=>{
+    const btn=el("button","modebtn"+(viewMode===m?" on":"")); btn.textContent=lab;
+    btn.onclick=()=>{ if(viewMode!==m){ viewMode=m; localStorage.setItem("astrobot_mode",m); run(); } };
+    modebar.appendChild(btn);
+  });
+  r.appendChild(modebar);
+
   // ── HERO ──
   const h=data.hero, hero=el("div","hero");
-  const chips=[`<button class="hchip" data-jump="today">⚡ Best: ${h.powerTime}</button>`];
-  if(h.top)      chips.push(`<button class="hchip" data-jump="transits">✦ ${h.top}</button>`);
-  if(h.sunHouse) chips.push(`<button class="hchip" data-jump="houses">${h.sunHouse}</button>`);
-  hero.innerHTML=`<div class="hero-moon">${h.moonG} ${h.phase} · Moon in ${h.moonSign}</div><div class="hero-line">${h.line}</div><div class="hero-chips">${chips.join("")}</div>`;
+  hero.innerHTML=`<div class="hero-moon">${h.topline}</div><div class="hero-line">${h.line}</div><div class="hero-chips">${h.chips.map(c=>`<button class="hchip" data-jump="${c.jump}">${c.t}</button>`).join("")}</div>`;
   r.appendChild(hero);
 
   // ── GOAL FILTER BAR ──
@@ -853,7 +1045,7 @@ function render(data){
   const present=TAB_DEFS.filter(([id])=>data.sec.some(s=>s.tab===id));
   const tabbar=el("div","tabbar"), panelWrap=el("div","panels");
   present.forEach(([id,label])=>{
-    const btn=el("button","tab"); btn.textContent=label; btn.dataset.tab=id; tabbar.appendChild(btn);
+    const btn=el("button","tab"); btn.textContent=(data.tabs&&data.tabs[id])||label; btn.dataset.tab=id; tabbar.appendChild(btn);
     const panel=el("div","panel"); panel.dataset.tab=id;
     if(id==="transits" && data.timeline && data.timeline.length) panel.appendChild(buildTimeline(data.timeline));
     data.sec.filter(s=>s.tab===id).forEach((s,i)=>{
