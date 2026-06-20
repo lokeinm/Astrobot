@@ -1048,13 +1048,15 @@ function buildForecast(natal,transit,start,days,mode,goals,approx){
 /* ───────────────────────── Synastry (two-chart compatibility) ───────────────────────── */
 const SYN_W={Sun:3,Moon:3,Venus:2.6,Mars:2,Mercury:1.6,Jupiter:1.4,Saturn:1.4,Uranus:1,Neptune:1,Pluto:1};
 function synScore(asps,set){
-  const q={flowing:1,fusing:0.7,dynamic:-0.55}; let s=0;
+  // Random pairs average ~29 aspects, so a plain sum just rewards quantity and pegs near 100.
+  // Tuned (against a 500-pair sample) for a real spread: typical ~70, poor ~40s, great 90+.
+  const q={flowing:1,fusing:0.7,dynamic:-0.85}; let s=0;
   for(const a of asps){
     if(set && !(set.includes(a.tp.n)||set.includes(a.np.n))) continue;
     const w=((SYN_W[a.tp.n]||1)+(SYN_W[a.np.n]||1))/2/3, close=1-a.orb/a.asp.orb;
     s+=q[a.asp.nat]*w*close;
   }
-  return Math.max(5,Math.min(98,Math.round(52+14*s)));
+  return Math.max(3,Math.min(99,Math.round(52+8*s)));
 }
 function synBlend(a,nA,nB){
   const {tp,np,asp}=a;
