@@ -207,6 +207,14 @@
   [data-goals]{transition:opacity .3s,filter .3s}
   [data-goals].dim{opacity:.32; filter:saturate(.4)}
 
+  /* ── NATAL BLUEPRINT ── */
+  .big3{display:flex; gap:10px; margin:14px 0 2px}
+  .b3{flex:1; text-align:center; background:linear-gradient(160deg,#26324c,#171f2c); border:1px solid #33405a; border-radius:13px; padding:14px 6px}
+  .b3g{font-size:26px; line-height:1; color:var(--gold-bright); font-family:var(--sym),serif}
+  .b3l{font-family:var(--mono); font-size:9.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--cream-dim); margin-top:7px}
+  .b3s{font-family:var(--serif); font-size:18px; color:var(--cream); margin-top:2px}
+  .balance{margin:6px 0}
+
   /* ── TAROT ── */
   .tspread{display:grid; gap:14px; margin-top:18px}
   .tspread.single{grid-template-columns:1fr; max-width:280px; margin-left:auto; margin-right:auto}
@@ -707,6 +715,40 @@ function buildWheel(natal,transit,asps){
   return {sectionHtml,details};
 }
 
+function natalBlend(a){
+  if(a.asp.nat==="flowing") return `your ${a.tp.short} and ${a.np.short} work in natural harmony.`;
+  if(a.asp.nat==="fusing")  return `your ${a.tp.short} and ${a.np.short} are fused — they act as one concentrated force.`;
+  return `your ${a.tp.short} and ${a.np.short} sit in tension — a lifelong growth edge that builds real strength.`;
+}
+const EL_MEAN={Fire:"action, passion and initiative",Earth:"practicality, patience and the material",Air:"ideas, communication and connection",Water:"emotion, intuition and depth"};
+const MO_MEAN={Cardinal:"initiating and starting things",Fixed:"sustaining and seeing things through",Mutable:"adapting and flowing with change"};
+function buildNatal(natal){
+  const asc=natal.ascSign, P=natal.planets, sun=P[0], moon=P[1];
+  // Big Three
+  let big=`<div class="big3"><div class="b3"><div class="b3g">${sun.g}</div><div class="b3l">Sun</div><div class="b3s">${SIGNS[sun.sign].n}</div></div>`+
+    `<div class="b3"><div class="b3g">${moon.g}</div><div class="b3l">Moon</div><div class="b3s">${SIGNS[moon.sign].n}</div></div>`+
+    (asc!=null?`<div class="b3"><div class="b3g">↑</div><div class="b3l">Rising</div><div class="b3s">${SIGNS[asc].n}</div></div>`:"")+`</div>`;
+  const big3text=`Your <b>Sun in ${SIGNS[sun.sign].n}</b> is your core identity (${SIGNS[sun.sign].key}); your <b>Moon in ${SIGNS[moon.sign].n}</b> is your emotional inner world (${SIGNS[moon.sign].key})${asc!=null?`; your <b>${SIGNS[asc].n} Rising</b> is how you meet the world (${SIGNS[asc].key})`:""}.`;
+  // every placement
+  const rows=P.map(p=>{ const h=houseOf(p.sign,asc);
+    return `<li><span class="t">${p.g} ${p.n} in ${SIGNS[p.sign].n}${h?` · ${ord(h)} house`:""}${p.retro?" ℞":""}</span><span class="m">${cap(p.short)} expresses as ${SIGNS[p.sign].key}${h?`, centered in ${HOUSE_INFO[h].ex}`:""}.${p.retro?" Retrograde at birth — this energy turns inward and is revisited across life.":""}</span></li>`;
+  }).join("");
+  // element / modality balance
+  const elC={Fire:0,Earth:0,Air:0,Water:0}, moC={Cardinal:0,Fixed:0,Mutable:0};
+  P.forEach(p=>{elC[SIGNS[p.sign].el]++; moC[SIGNS[p.sign].mo]++;});
+  const domEl=Object.entries(elC).sort((a,b)=>b[1]-a[1])[0][0], domMo=Object.entries(moC).sort((a,b)=>b[1]-a[1])[0][0];
+  const bar=(k,v)=>`<div class="sbar"><span>${k}</span><div class="strack"><div class="sfill" style="width:${Math.round(v/P.length*100)}%"></div></div><b>${v}</b></div>`;
+  const balText=`Your chart leans <b>${domEl}</b> (${EL_MEAN[domEl]}) and <b>${domMo}</b> (${MO_MEAN[domMo]}).`;
+  // major natal aspects
+  const nasp=internalAspects(natal).slice(0,5);
+  const aspList=nasp.map(a=>`<li><span class="t">${a.tp.g} ${a.tp.n} ${a.asp.sym} ${a.np.g} ${a.np.n} <span style="color:#7e8a98">(${a.orb.toFixed(1)}°)</span></span><span class="m">${cap(natalBlend(a))}</span></li>`).join("");
+  const note=asc==null?`<p class="hint">Add a birth time for your Rising sign and house placements.</p>`:"";
+  return `<p class="lead">${big3text}</p>${big}`+
+    `<h3 class="sub-h">Every placement</h3><ul>${rows}</ul>`+
+    `<h3 class="sub-h">Element &amp; modality balance</h3><p>${balText}</p><div class="balance">${Object.entries(elC).map(([k,v])=>bar(k,v)).join("")}</div><div class="balance">${Object.entries(moC).map(([k,v])=>bar(k,v)).join("")}</div>`+
+    (nasp.length?`<h3 class="sub-h">Major natal aspects</h3><ul>${aspList}</ul>`:"")+note;
+}
+
 function buildReading(natal,transit,asps,goals,approx){
   const moon=transit.planets[1], sun=transit.planets[0];
   const moonSign=SIGNS[moon.sign];
@@ -835,6 +877,7 @@ function buildReading(natal,transit,asps,goals,approx){
   /* chart wheel (bi-wheel: natal + transits) */
   const wheel=buildWheel(natal,transit,asps);
   sec.push({no:"12",h:"Your Chart Wheel",tab:"chart",html:wheel.sectionHtml});
+  sec.push({h:"Your Natal Blueprint",tab:"chart",html:buildNatal(natal)});
 
   sec.forEach((s,i)=>s.no=String(i+1).padStart(2,"0")); // auto-number so inserted sections stay sequential
 
