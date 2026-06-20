@@ -1,0 +1,48 @@
+name: Daily Astrobot email
+
+# Runs once a day, generates today's reading from the app, and emails it.
+# 12:00 UTC ≈ 8am US-Eastern (EDT) / 7am (EST). Change the cron below to your morning.
+# (GitHub may delay scheduled runs by a few minutes under load — fine for a daily email.)
+on:
+  schedule:
+    - cron: '0 12 * * *'
+  workflow_dispatch: {}   # lets you run it manually from the Actions tab to test
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install --with-deps chromium
+
+      - name: Generate today's reading
+        id: gen
+        env:
+          BDATE: ${{ secrets.BDATE }}
+          BTIME: ${{ secrets.BTIME }}
+          LAT:   ${{ secrets.LAT }}
+          LON:   ${{ secrets.LON }}
+          TZ:    ${{ secrets.TZ }}
+          GOALS: ${{ secrets.GOALS }}
+        run: node scripts/daily-email.mjs
+
+      - name: Send email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.MAIL_SERVER }}
+          server_port: ${{ secrets.MAIL_PORT }}
+          secure: true
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: ${{ steps.gen.outputs.subject }}
+          to: ${{ secrets.MAIL_TO }}
+          from: Astrobot <${{ secrets.MAIL_USERNAME }}>
+          html_body: file://.daily/body.html
