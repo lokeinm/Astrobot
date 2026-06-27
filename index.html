@@ -285,6 +285,15 @@
   .wheel-detail li::before{content:"·"; position:absolute; left:4px; color:var(--gold)}
   .wd-sub{color:#9aa6b4; font-size:13.5px}
 
+  /* ── PDF EXPORT SHEET (offscreen capture target) ── */
+  .pdf-sheet{position:fixed; left:-9999px; top:0; width:720px; padding:34px 30px; box-sizing:border-box;
+    background:#0e1117; color:var(--cream); font-family:var(--body)}
+  .pdf-sheet section.read{opacity:1!important; transform:none!important; animation:none!important}
+  .pdf-sheet .hero{animation:none!important}
+  .pdf-sheet .read+.read{margin-top:14px}
+  .pdf-credit{margin-top:26px; padding-top:16px; border-top:1px solid var(--line);
+    text-align:center; font-family:var(--mono); font-size:11px; letter-spacing:.12em; color:var(--cream-dim)}
+
   /* ── MODE TOGGLE (Today / Week / Month) ── */
   .modebar{display:flex; gap:6px; padding:5px; margin:16px 0 0; background:var(--ink-2);
     border:1px solid var(--line); border-radius:999px}
@@ -1376,6 +1385,136 @@ function buildTimeline(timeline){
   return wrap;
 }
 
+/* ───────────────────────── PDF export ─────────────────────────
+   Builds an offscreen "sheet" with the whole reading (every section across all
+   tabs + the chart wheel), rasterizes it with html2canvas, and slices the canvas
+   across A4 pages into a downloadable PDF via jsPDF. Libraries are loaded lazily
+   from esm.sh (same CDN as astronomy-engine) only on first export.            */
+
+// Resolved styling for the wheel SVG. A serialized SVG is a standalone image and
+// can't see the page's CSS classes or variables, so we inline literal values.
+const WHEEL_SVG_CSS=`
+  .wk-ring{fill:none;stroke:#2b3647;stroke-width:1}
+  .wk-div{stroke:#2b3647;stroke-width:.6}
+  .wk-sign{fill:#c9a45c;font-size:15px;text-anchor:middle}
+  .wk-house{fill:#b9b09b;font-size:11px;text-anchor:middle}
+  .wk-asc{fill:#e3bd72;font-size:9px;letter-spacing:.1em;text-anchor:middle}
+  .wk-planet text{text-anchor:middle;font-size:15px}
+  .wk-np text{fill:#e3bd72}
+  .wk-tp text{fill:#cfe0ff}
+  .wk-cp text{fill:#c9b6e6}
+  .wk-hit{fill:transparent;stroke:transparent}
+  /* symbol font stack (matches --sym) so zodiac/planet glyphs render monochrome,
+     not as color emoji, once the SVG is rasterized standalone */
+  .wk-sign,.wk-planet text{font-family:'Apple Symbols','Segoe UI Symbol','Noto Sans Symbols2',serif}
+  .wk-house,.wk-asc{font-family:'IBM Plex Mono',monospace}
+`;
+
+// One wheel SVG → a decoded PNG <img> at high resolution.
+function wheelToImg(svg){
+  return new Promise((res,rej)=>{
+    const W=340,H=340,scale=3;
+    const clone=svg.cloneNode(true);
+    clone.setAttribute("xmlns","http://www.w3.org/2000/svg");
+    clone.setAttribute("width",W); clone.setAttribute("height",H);
+    const style=document.createElementNS("http://www.w3.org/2000/svg","style");
+    style.textContent=WHEEL_SVG_CSS;
+    clone.insertBefore(style,clone.firstChild);
+    const xml=new XMLSerializer().serializeToString(clone);
+    const src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(xml);
+    const im=new Image();
+    im.onload=()=>{
+      const c=document.createElement("canvas"); c.width=W*scale; c.height=H*scale;
+      c.getContext("2d").drawImage(im,0,0,c.width,c.height);
+      const out=new Image();
+      out.onload=()=>res(out); out.onerror=rej;
+      out.style.cssText="display:block;width:300px;max-width:100%;margin:8px auto 0";
+      out.src=c.toDataURL("image/png");
+    };
+    im.onerror=rej; im.src=src;
+  });
+}
+
+async function exportPDF(data,syn,btn){
+  const label=btn.textContent;
+  btn.disabled=true; btn.textContent="Exporting…";
+  let sheet;
+  try{
+    const [{ jsPDF }, h2cMod]=await Promise.all([
+      import("https://esm.sh/jspdf@2.5.1"),
+      import("https://esm.sh/html2canvas@1.4.1"),
+    ]);
+    const html2canvas=h2cMod.default;
+
+    // ── build the offscreen sheet ──
+    sheet=el("div","pdf-sheet");
+    const dl=el("div","dateline");
+    if(syn) dl.innerHTML=`<div class="l">${data.headL}</div><div class="d">${data.headD}</div>`;
+    else    dl.innerHTML=`<div class="l">Today's Sky</div><div class="d">${data.transit.date.toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric",year:"numeric"})}</div>`;
+    sheet.appendChild(dl);
+
+    const h=data.hero, hero=el("div","hero");   // hero without the interactive chips
+    hero.innerHTML=`<div class="hero-moon">${h.topline}</div><div class="hero-line">${h.line}</div>`;
+    sheet.appendChild(hero);
+
+    // every section, in tab order, flattened (ignore the tab split)
+    const present=TAB_DEFS.filter(([id])=>data.sec.some(s=>s.tab===id));
+    present.forEach(([id])=>{
+      data.sec.filter(s=>s.tab===id).forEach(s=>{
+        const sx=el("section","read");
+        sx.innerHTML=`<div class="no">${s.no}</div><h2>${s.h}</h2>${s.html}`;
+        sx.querySelectorAll(".wheel-detail").forEach(e=>e.remove());  // "tap to reveal" — useless in print
+        sheet.appendChild(sx);
+      });
+    });
+
+    const credit=el("div","pdf-credit");
+    credit.textContent=`Astrobot · https://lokeinm.github.io/Astrobot/ · generated ${new Date().toLocaleDateString(undefined,{year:"numeric",month:"long",day:"numeric"})}`;
+    sheet.appendChild(credit);
+    document.body.appendChild(sheet);
+
+    // convert each wheel SVG → PNG in place (omit any that fail)
+    for(const svg of [...sheet.querySelectorAll("svg.wheel")]){
+      try{ svg.replaceWith(await wheelToImg(svg)); }
+      catch(e){ console.warn("wheel export skipped",e); svg.remove(); }
+    }
+
+    if(document.fonts&&document.fonts.ready) await document.fonts.ready;
+
+    // ── rasterize + slice across A4 pages ──
+    const canvas=await html2canvas(sheet,{scale:2,backgroundColor:"#0e1117",useCORS:true,logging:false,windowWidth:720});
+    const pdf=new jsPDF({unit:"pt",format:"a4"});
+    const pw=pdf.internal.pageSize.getWidth(), ph=pdf.internal.pageSize.getHeight();
+    const pxPerPt=canvas.width/pw, pageHpx=ph*pxPerPt;
+    let y=0,page=0;
+    while(y<canvas.height){
+      const sliceH=Math.min(pageHpx,canvas.height-y);
+      const pc=document.createElement("canvas"); pc.width=canvas.width; pc.height=sliceH;
+      const ctx=pc.getContext("2d");
+      ctx.fillStyle="#0e1117"; ctx.fillRect(0,0,pc.width,pc.height);
+      ctx.drawImage(canvas,0,y,canvas.width,sliceH,0,0,canvas.width,sliceH);
+      if(page>0) pdf.addPage();
+      pdf.addImage(pc.toDataURL("image/jpeg",0.92),"JPEG",0,0,pw,sliceH/pxPerPt);
+      y+=sliceH; page++;
+    }
+
+    const today=new Date().toISOString().slice(0,10);
+    const slug=s=>(s||"").replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").toLowerCase();
+    const filename=syn ? `astrobot-synastry-${slug(data.headD)}-${today}.pdf`
+                       : `astrobot-reading-${today}.pdf`;
+    pdf.save(filename);
+  }catch(e){
+    console.error(e);
+    btn.textContent="Export failed — try again";
+    setTimeout(()=>{btn.textContent=label;},2600);
+    return;
+  }finally{
+    if(sheet&&sheet.parentNode) sheet.remove();
+    btn.disabled=false;
+    if(btn.textContent==="Exporting…") btn.textContent=label;
+  }
+}
+
 function render(data){
   const r=$("#reading"); r.innerHTML=""; r.style.display="block";
   const syn=data.mode==="synastry";
@@ -1485,6 +1624,8 @@ function render(data){
     const edit=el("button","ghost");edit.textContent="✎ Edit details";edit.onclick=()=>{r.style.display="none";window.scrollTo({top:0,behavior:"smooth"});};
     fb.append(again,edit);
   }
+  const pdf=el("button","ghost");pdf.textContent="⤓ Export PDF";pdf.onclick=()=>exportPDF(data,syn,pdf);
+  fb.append(pdf);
   r.appendChild(fb);
 
   $("#disc").textContent="Astrobot is for reflection, encouragement and self-coaching — not medical, legal or financial advice. Astrology describes energy and possibility, never certainty. You always hold the pen.";
