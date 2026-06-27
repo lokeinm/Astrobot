@@ -52,6 +52,12 @@ midpoint chart) with its core placements.
 A full **78-card deck** (Major + Minor Arcana) with three spreads — Single, Three-Card, and the
 10-card Celtic Cross — and optional reversed cards, each with its own meaning.
 
+### Export to PDF
+An **⤓ Export PDF** button on every reading (daily, Week/Month forecast, and synastry) saves the
+whole reading — every section across all tabs **plus the chart wheel** — as a multi-page PDF.
+It runs entirely in the browser: the PDF libraries load on demand only when you first export, so
+they cost nothing on a normal visit, and nothing leaves your device.
+
 > Houses, the Rising sign, and overlays need a birth time; without one the app degrades
 > gracefully (durations, planets and aspects still work, with a note).
 
